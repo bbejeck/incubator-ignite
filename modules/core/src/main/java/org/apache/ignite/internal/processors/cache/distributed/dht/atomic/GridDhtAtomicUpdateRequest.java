@@ -255,14 +255,14 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
             drVers.add(drVer);
         }
         else if (drVers != null)
-            drVers.add(drVer);
+            drVers.add(null);
 
         if (ttl >= 0) {
             if (ttls == null) {
                 ttls = new GridLongList(keys.size());
 
                 for (int i = 0; i < keys.size() - 1; i++)
-                    ttls.add(-1);
+                    ttls.add(CU.TTL_NOT_CHANGED);
             }
         }
 
@@ -274,7 +274,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
                 drExpireTimes = new GridLongList(keys.size());
 
                 for (int i = 0; i < keys.size() - 1; i++)
-                    drExpireTimes.add(-1);
+                    drExpireTimes.add(CU.EXPIRE_TIME_CALCULATE);
             }
         }
 
@@ -331,7 +331,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
                 nearTtls = new GridLongList(nearKeys.size());
 
                 for (int i = 0; i < nearKeys.size() - 1; i++)
-                    nearTtls.add(-1);
+                    nearTtls.add(CU.TTL_NOT_CHANGED);
             }
         }
 
@@ -343,7 +343,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
                 nearExpireTimes = new GridLongList(nearKeys.size());
 
                 for (int i = 0; i < nearKeys.size() - 1; i++)
-                    nearExpireTimes.add(-1);
+                    nearExpireTimes.add(CU.EXPIRE_TIME_CALCULATE);
             }
         }
 
@@ -549,13 +549,6 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
     }
 
     /**
-     * @return DR versions.
-     */
-    @Nullable public List<GridCacheVersion> drVersions() {
-        return drVers;
-    }
-
-    /**
      * @param idx Index.
      * @return DR version.
      */
@@ -580,7 +573,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
             return ttls.get(idx);
         }
 
-        return -1L;
+        return CU.TTL_NOT_CHANGED;
     }
 
     /**
@@ -594,7 +587,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
             return nearTtls.get(idx);
         }
 
-        return -1L;
+        return CU.TTL_NOT_CHANGED;
     }
 
     /**
@@ -615,7 +608,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
             return drExpireTimes.get(idx);
         }
 
-        return -1L;
+        return CU.EXPIRE_TIME_CALCULATE;
     }
 
     /**
@@ -629,7 +622,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
             return nearExpireTimes.get(idx);
         }
 
-        return -1L;
+        return CU.EXPIRE_TIME_CALCULATE;
     }
 
     /**

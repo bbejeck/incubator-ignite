@@ -3850,16 +3850,10 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
                     throws IgniteException {
                     assert ver == null;
 
-                    long ttl = 0;
+                    Long ttl = CU.ttlForLoad(plc);
 
-                    if (plc != null) {
-                        ttl = CU.toTtl(plc.getExpiryForCreation());
-
-                        if (ttl == CU.TTL_ZERO)
-                            return;
-                        else if (ttl == CU.TTL_NOT_CHANGED)
-                            ttl = 0;
-                    }
+                    if (ttl == null)
+                        return;
 
                     loadEntry(key, val, ver0, p, topVer, replicate, ttl);
                 }
@@ -3894,7 +3888,8 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
         GridCacheEntryEx<K, V> entry = entryEx(key, false);
 
         try {
-            entry.initialValue(val, null, ver, ttl, -1, false, topVer, replicate ? DR_LOAD : DR_NONE);
+            entry.initialValue(val, null, ver, ttl, CU.EXPIRE_TIME_CALCULATE, false, topVer,
+                replicate ? DR_LOAD : DR_NONE);
         }
         catch (IgniteCheckedException e) {
             throw new IgniteException("Failed to put cache value: " + entry, e);
@@ -4050,16 +4045,10 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
 
             ctx.store().loadAllFromStore(null, keys, new CI2<K, V>() {
                 @Override public void apply(K key, V val) {
-                    long ttl = 0;
+                    Long ttl = CU.ttlForLoad(plc0);
 
-                    if (plc0 != null) {
-                        ttl = CU.toTtl(plc0.getExpiryForCreation());
-
-                        if (ttl == CU.TTL_ZERO)
-                            return;
-                        else if (ttl == CU.TTL_NOT_CHANGED)
-                            ttl = 0;
-                    }
+                    if (ttl == null)
+                        return;
 
                     loadEntry(key, val, ver0, null, topVer, replicate, ttl);
                 }

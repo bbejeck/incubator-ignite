@@ -74,11 +74,23 @@ public class GridCacheUtils {
     /** Peek flags. */
     private static final GridCachePeekMode[] PEEK_FLAGS = new GridCachePeekMode[] { GLOBAL, SWAP };
 
-    /** */
+    /** TTL: minimum positive value. */
+    public static final long TTL_MINIMUM = 1L;
+
+    /** TTL: eternal. */
+    public static final long TTL_ETERNAL = 0L;
+
+    /** TTL: not changed. */
     public static final long TTL_NOT_CHANGED = -1L;
 
-    /** */
+    /** TTL: zero (immediate expiration). */
     public static final long TTL_ZERO = -2L;
+
+    /** Expire time: eternal. */
+    public static final long EXPIRE_TIME_ETERNAL = 0L;
+
+    /** Expire time: must be calculated based on TTL value. */
+    public static final long EXPIRE_TIME_CALCULATE = -1L;
 
     /** Per-thread generated UID store. */
     private static final ThreadLocal<String> UUIDS = new ThreadLocal<String>() {
@@ -1687,7 +1699,7 @@ public class GridCacheUtils {
 
         if (duration.getDurationAmount() == 0) {
             if (duration.isEternal())
-                return 0;
+                return TTL_ETERNAL;
 
             assert duration.isZero();
 
@@ -1697,6 +1709,34 @@ public class GridCacheUtils {
         assert duration.getTimeUnit() != null : duration;
 
         return duration.getTimeUnit().toMillis(duration.getDurationAmount());
+    }
+
+    /**
+     * Get TTL for load operation.
+     *
+     * @param plc Expiry policy.
+     * @return TTL for load operation or {@code null} in case object should not be loaded further.
+     */
+    public static Long ttlForLoad(ExpiryPolicy plc) {
+        if (plc != null) {
+            long ttl = CU.toTtl(plc.getExpiryForCreation());
+
+            if (ttl == CU.TTL_ZERO)
+                return null;
+            else if (ttl == CU.TTL_NOT_CHANGED)
+                return CU.TTL_ETERNAL;
+            else
+                return ttl;
+        }
+        else
+            return CU.TTL_ETERNAL;
+    }
+
+    /**
+     * @return Expire time denoting a point in the past.
+     */
+    public static long expireTimeInPast() {
+        return U.currentTimeMillis() - 1L;
     }
 
     /**

@@ -2005,7 +2005,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 valBytes,
                                 entryProcessor,
                                 updRes.newTtl(),
-                                -1,
+                                CU.EXPIRE_TIME_CALCULATE,
                                 null);
 
                         if (!F.isEmpty(filteredReaders))
@@ -2015,7 +2015,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 valBytes,
                                 entryProcessor,
                                 updRes.newTtl(),
-                                -1);
+                                CU.EXPIRE_TIME_CALCULATE);
                     }
 
                     if (hasNear) {
