@@ -1317,8 +1317,8 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 (cctx.readThrough() && (op == GridCacheOperation.TRANSFORM || cctx.loadPreviousValue()))) {
                 old = readThrough(null, key, false, subjId, taskName);
 
-                long ttl = 0;
-                long expireTime = 0;
+                long ttl = CU.TTL_ETERNAL;
+                long expireTime = CU.EXPIRE_TIME_ETERNAL;
 
                 if (expiryPlc != null && old != null) {
                     ttl = CU.toTtl(expiryPlc.getExpiryForCreation());
@@ -1420,8 +1420,8 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
 
             boolean hadVal = hasValueUnlocked();
 
-            long ttl = 0;
-            long expireTime = 0;
+            long ttl = CU.TTL_ETERNAL;
+            long expireTime = CU.EXPIRE_TIME_ETERNAL;
 
             if (op == GridCacheOperation.UPDATE) {
                 if (expiryPlc != null) {
@@ -1491,7 +1491,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 // in load methods without actually holding entry lock.
                 clearIndex(old);
 
-                update(null, null, 0, 0, ver);
+                update(null, null, CU.TTL_ETERNAL, CU.EXPIRE_TIME_ETERNAL, ver);
 
                 if (evt) {
                     V evtOld = null;
@@ -1560,9 +1560,6 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
         @Nullable UUID subjId,
         String taskName
     ) throws IgniteCheckedException, GridCacheEntryRemovedException, GridClosureException {
-        GridCacheMapEntryOperationExpiry expiry0 =
-            new GridCacheMapEntryOperationExpiry(expiryPlc, explicitTtl, explicitExpireTime);
-
         assert cctx.atomic();
 
         boolean res = true;
@@ -1576,8 +1573,8 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
 
         EntryProcessorResult<?> invokeRes = null;
 
-        long newTtl = CU.TTL_NOT_CHANGED;
-        long newExpireTime = CU.EXPIRE_TIME_CALCULATE;
+        long newTtl;
+        long newExpireTime;
 
         synchronized (this) {
             boolean needVal = intercept || retval || op == GridCacheOperation.TRANSFORM || !F.isEmptyOrNulls(filter);
@@ -1607,7 +1604,8 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                         valBytes = null;
                     }
 
-                    GridTuple3<Long, Long, Boolean> expiration = expiry0.ttlAndExpireTime(this);
+                    GridTuple3<Long, Long, Boolean> expiration = ttlAndExpireTime(expiryPlc,
+                        explicitTtl, explicitExpireTime);
 
                     // Prepare old and new entries for conflict resolution.
                     GridCacheVersionedEntryEx<K, V> oldEntry = versionedEntry();
@@ -1735,8 +1733,8 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 long initTtl;
                 long initExpireTime;
 
-                if (expiry0.hasExpiry() && oldVal != null) {
-                    IgniteBiTuple<Long, Long> initTtlAndExpireTime = expiry0.initialTtlAndExpireTime();
+                if (expiryPlc != null && oldVal != null) {
+                    IgniteBiTuple<Long, Long> initTtlAndExpireTime = initialTtlAndExpireTime(expiryPlc);
 
                     initTtl = initTtlAndExpireTime.get1();
                     initExpireTime = initTtlAndExpireTime.get2();
@@ -2099,6 +2097,91 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             enqueueVer,
             conflictCtx,
             true);
+    }
+
+    /**
+     * @param expiry Expiration policy.
+     * @return Tuple holding initial TTL and expire time with the given expiry.
+     */
+    private static IgniteBiTuple<Long, Long> initialTtlAndExpireTime(IgniteCacheExpiryPolicy expiry) {
+        assert expiry != null;
+
+        long initTtl = expiry.forCreate();
+        long initExpireTime;
+
+        if (initTtl == CU.TTL_ZERO) {
+            initTtl = CU.TTL_MINIMUM;
+            initExpireTime = CU.expireTimeInPast();
+        }
+        else if (initTtl == CU.TTL_NOT_CHANGED) {
+            initTtl = CU.TTL_ETERNAL;
+            initExpireTime = CU.EXPIRE_TIME_ETERNAL;
+        }
+        else
+            initExpireTime = CU.toExpireTime(initTtl);
+
+        return F.t(initTtl, initExpireTime);
+    }
+
+    /**
+     * Get TTL, expire time and remove flag for the given entry, expiration policy and explicit TTL and expire time.
+     *
+     * @param expiry Expiration policy.
+     * @param explicitTtl Explicit TTL.
+     * @param explicitExpireTime Explicit expire time.
+     * @return Result.
+     */
+    private GridTuple3<Long, Long, Boolean> ttlAndExpireTime(IgniteCacheExpiryPolicy expiry, long explicitTtl,
+        long explicitExpireTime) {
+        long ttl;
+        long expireTime;
+        boolean rmv;
+
+        if (explicitTtl != CU.TTL_NOT_CHANGED) {
+            // TTL is set explicitly.
+            assert explicitTtl != CU.TTL_MINIMUM && explicitTtl >= 0L;
+
+            ttl = explicitTtl;
+            expireTime = explicitExpireTime != CU.EXPIRE_TIME_CALCULATE ?
+                explicitExpireTime : CU.toExpireTime(explicitTtl);
+            rmv = false;
+        }
+        else {
+            // Need to calculate TTL.
+            if (expiry != null) {
+                // Expiry exists.
+                long sysTtl = hasValueUnlocked() ? expiry.forUpdate() : expiry.forCreate();
+
+                if (sysTtl == CU.TTL_ZERO) {
+                    // Entry must be expired immediately.
+                    ttl = CU.TTL_MINIMUM;
+                    expireTime = CU.expireTimeInPast();
+                    rmv = true;
+                }
+                else if (sysTtl == CU.TTL_NOT_CHANGED) {
+                    // TTL is not changed.
+                    ttl = ttlExtras();
+                    expireTime = CU.toExpireTime(ttl);
+                    rmv = false;
+                }
+                else {
+                    // TTL is changed.
+                    assert sysTtl >= 0;
+
+                    ttl = sysTtl;
+                    expireTime = CU.toExpireTime(ttl);
+                    rmv = false;
+                }
+            }
+            else {
+                // No expiry, entry is immortal.
+                ttl = CU.TTL_ETERNAL;
+                expireTime = CU.EXPIRE_TIME_ETERNAL;
+                rmv = false;
+            }
+        }
+
+        return F.t(ttl, expireTime, rmv);
     }
 
     /**
