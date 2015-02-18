@@ -3259,7 +3259,7 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
 
         if (e != null) {
             e.expiry(expiryPlc);
-            e.conflictExpireTime(CONFLICT_EXPIRE_TIME_NOT_SET);
+            e.conflictExpireTime(CU.EXPIRE_TIME_CALCULATE);
         }
     }
 
