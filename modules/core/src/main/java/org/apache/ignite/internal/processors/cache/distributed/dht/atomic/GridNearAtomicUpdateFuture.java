@@ -533,13 +533,13 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
                 GridCacheDrInfo<V> conflictPutVal =  F.first(conflictPutVals);
 
                 val = conflictPutVal.value();
-                conflictInfo = GridCacheConflictInfo.create(conflictPutVal.version(), conflictPutVal.ttl(),
+                conflictInfo = create(conflictPutVal.version(), conflictPutVal.ttl(),
                     conflictPutVal.expireTime());
             }
             else if (conflictRmvVals != null) {
                 // Conflict REMOVE.
                 val = null;
-                conflictInfo = GridCacheConflictInfo.create(F.first(conflictRmvVals), CU.TTL_NOT_CHANGED,
+                conflictInfo = create(F.first(conflictRmvVals), CU.TTL_NOT_CHANGED,
                     CU.EXPIRE_TIME_CALCULATE);
             }
             else {
@@ -658,12 +658,12 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
                     GridCacheDrInfo<V> conflictPutVal =  conflictPutValsIt.next();
 
                     val = conflictPutVal.value();
-                    conflictInfo = GridCacheConflictInfo.create(conflictPutVal.version(), conflictPutVal.ttl(),
+                    conflictInfo = create(conflictPutVal.version(), conflictPutVal.ttl(),
                         conflictPutVal.expireTime());
                 }
                 else if (conflictRmvVals != null) {
                     val = null;
-                    conflictInfo = GridCacheConflictInfo.create(conflictRmvValsIt.next(), CU.TTL_NOT_CHANGED,
+                    conflictInfo = create(conflictRmvValsIt.next(), CU.TTL_NOT_CHANGED,
                         CU.EXPIRE_TIME_CALCULATE);
                 }
                 else {
@@ -736,6 +736,21 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
             single = false;
 
         doUpdate(pendingMappings);
+    }
+
+    // TODO: IGNITE-283: Remove.
+    public static GridCacheConflictInfo create(GridCacheVersion ver, long ttl, long expireTime) {
+        if (ttl == CU.TTL_NOT_CHANGED) {
+            assert expireTime == CU.EXPIRE_TIME_CALCULATE;
+
+            return new GridCacheNoTtlConflictInfo(ver);
+        }
+        else {
+            assert ttl != CU.TTL_ZERO && ttl >= 0;
+            assert expireTime != CU.EXPIRE_TIME_CALCULATE && expireTime >= 0;
+
+            return new GridCacheTtlConflictInfo(ver, ttl, expireTime);
+        }
     }
 
     /**

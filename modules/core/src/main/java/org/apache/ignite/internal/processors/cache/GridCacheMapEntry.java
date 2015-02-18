@@ -1562,7 +1562,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
 
         boolean res = true;
 
-        V oldVal = null;
+        V oldVal;
         V updated;
 
         GridCacheVersion enqueueVer = null;
@@ -1789,7 +1789,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
 
             // Calculate new value in case we met transform.
             if (op == GridCacheOperation.TRANSFORM) {
-                assert conflictCtx == null : "Cannot be TRANSFORM here is conflict resolution was performed earlier.";
+                assert conflictCtx == null : "Cannot be TRANSFORM here if conflict resolution was performed earlier.";
 
                 transformClo = writeObj;
 

@@ -1701,7 +1701,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     ctx.config().getAtomicWriteOrderMode() == CLOCK, // Check version in CLOCK mode on primary node.
                     req.filter(),
                     replicate ? primary ? DR_PRIMARY : DR_BACKUP : DR_NONE,
-                    new GridCacheConflictInnerUpdate(true, newConflictVer, newConflictTtl, newConflictExpireTime),
+                    new GridCacheConflictInnerUpdate(newConflictInfo != null, newConflictVer, newConflictTtl,
+                        newConflictExpireTime),
                     intercept,
                     req.subjectId(),
                     taskName);
