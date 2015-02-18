@@ -2472,7 +2472,8 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
     }
 
     /** {@inheritDoc} */
-    @Override public void putAllConflict(final Map<? extends K, GridCacheDrInfo<V>> drMap) throws IgniteCheckedException {
+    @Override public void putAllConflict(final Map<? extends K, GridCacheDrInfo<V>> drMap)
+        throws IgniteCheckedException {
         if (F.isEmpty(drMap))
             return;
 
@@ -3379,7 +3380,8 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
     }
 
     /** {@inheritDoc} */
-    @Override public void removeAllConflict(final Map<? extends K, GridCacheVersion> drMap) throws IgniteCheckedException {
+    @Override public void removeAllConflict(final Map<? extends K, GridCacheVersion> drMap)
+        throws IgniteCheckedException {
         ctx.denyOnLocalRead();
 
         if (F.isEmpty(drMap))
