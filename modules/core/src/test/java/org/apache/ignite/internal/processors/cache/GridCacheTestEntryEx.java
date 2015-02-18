@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache;
 
 import org.apache.ignite.*;
 import org.apache.ignite.cache.eviction.*;
+import org.apache.ignite.internal.processors.cache.conflict.*;
 import org.apache.ignite.internal.processors.cache.transactions.*;
 import org.apache.ignite.internal.processors.cache.version.*;
 import org.apache.ignite.internal.processors.dr.*;
@@ -478,10 +479,7 @@ public class GridCacheTestEntryEx<K, V> extends GridMetadataAwareAdapter impleme
         boolean checkVer,
         @Nullable IgnitePredicate<Cache.Entry<K, V>>[] filter,
         GridDrType drType,
-        long drTtl,
-        long drExpireTime,
-        @Nullable GridCacheVersion drVer,
-        boolean drResolve,
+        GridCacheConflictInnerUpdate conflict,
         boolean intercept,
         UUID subjId,
         String taskName) throws IgniteCheckedException,
@@ -489,6 +487,7 @@ public class GridCacheTestEntryEx<K, V> extends GridMetadataAwareAdapter impleme
         return new GridCacheUpdateAtomicResult<>(true,
             rawPut((V)val, 0),
             (V)val,
+            null,
             null,
             0L,
             0L,

@@ -39,11 +39,14 @@ public class GridCacheUpdateAtomicResult<K, V> {
     @GridToStringInclude
     private final V newVal;
 
+    /** New value bytes. */
+    private final byte[] newValBytes;
+
     /** New TTL. */
     private final long newTtl;
 
     /** Explicit DR expire time (if any). */
-    private final long drExpireTime;
+    private final long conflictExpireTime;
 
     /** Version for deferred delete. */
     @GridToStringInclude
@@ -51,7 +54,7 @@ public class GridCacheUpdateAtomicResult<K, V> {
 
     /** DR resolution result. */
     @GridToStringInclude
-    private final GridCacheVersionConflictContext<K, V> drRes;
+    private final GridCacheVersionConflictContext<K, V> conflictRes;
 
     /** Whether update should be propagated to DHT node. */
     private final boolean sndToDht;
@@ -65,30 +68,33 @@ public class GridCacheUpdateAtomicResult<K, V> {
      * @param success Success flag.
      * @param oldVal Old value.
      * @param newVal New value.
+     * @param newValBytes New value bytes.
      * @param res Value computed by the {@link EntryProcessor}.
      * @param newTtl New TTL.
-     * @param drExpireTime Explicit DR expire time (if any).
+     * @param conflictExpireTime Explicit DR expire time (if any).
      * @param rmvVer Version for deferred delete.
-     * @param drRes DR resolution result.
+     * @param conflictRes DR resolution result.
      * @param sndToDht Whether update should be propagated to DHT node.
      */
     public GridCacheUpdateAtomicResult(boolean success,
         @Nullable V oldVal,
         @Nullable V newVal,
+        @Nullable byte[] newValBytes,
         @Nullable EntryProcessorResult<?> res,
         long newTtl,
-        long drExpireTime,
+        long conflictExpireTime,
         @Nullable GridCacheVersion rmvVer,
-        @Nullable GridCacheVersionConflictContext<K, V> drRes,
+        @Nullable GridCacheVersionConflictContext<K, V> conflictRes,
         boolean sndToDht) {
         this.success = success;
         this.oldVal = oldVal;
         this.newVal = newVal;
+        this.newValBytes = newValBytes;
         this.res = res;
         this.newTtl = newTtl;
-        this.drExpireTime = drExpireTime;
+        this.conflictExpireTime = conflictExpireTime;
         this.rmvVer = rmvVer;
-        this.drRes = drRes;
+        this.conflictRes = conflictRes;
         this.sndToDht = sndToDht;
     }
 
@@ -121,17 +127,25 @@ public class GridCacheUpdateAtomicResult<K, V> {
     }
 
     /**
-     * @return {@code -1} if TTL did not change, otherwise new TTL.
+     * @return New value bytes.
+     */
+    @Nullable public byte[] newValueBytes() {
+        return newValBytes;
+    }
+
+    /**
+     * @return {@link GridCacheUtils#TTL_NOT_CHANGED} if TTL did not change, otherwise new TTL.
      */
     public long newTtl() {
         return newTtl;
     }
 
     /**
-     * @return Explicit DR expire time (if any).
+     * @return Explicit conflict expire time (if any). Set only if it is necessary to propagate concrete expire time
+     * value to DHT node. Otherwise set to {@link GridCacheUtils#EXPIRE_TIME_CALCULATE}.
      */
-    public long drExpireTime() {
-        return drExpireTime;
+    public long conflictExpireTime() {
+        return conflictExpireTime;
     }
 
     /**
@@ -144,8 +158,8 @@ public class GridCacheUpdateAtomicResult<K, V> {
     /**
      * @return DR conflict resolution context.
      */
-    @Nullable public GridCacheVersionConflictContext<K, V> drResolveResult() {
-        return drRes;
+    @Nullable public GridCacheVersionConflictContext<K, V> conflictResolveResult() {
+        return conflictRes;
     }
 
     /**

@@ -21,9 +21,9 @@ import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.processors.cache.*;
+import org.apache.ignite.internal.processors.cache.conflict.*;
 import org.apache.ignite.internal.processors.cache.distributed.*;
 import org.apache.ignite.internal.processors.cache.version.*;
-import org.apache.ignite.internal.util.*;
 import org.apache.ignite.internal.util.tostring.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
 import org.apache.ignite.lang.*;
@@ -96,14 +96,8 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
     private byte[][] invokeArgsBytes;
 
     /** DR versions. */
-    @GridDirectCollection(GridCacheVersion.class)
-    private List<GridCacheVersion> drVers;
-
-    /** DR TTLs. */
-    private GridLongList drTtls;
-
-    /** DR TTLs. */
-    private GridLongList drExpireTimes;
+    @GridDirectCollection(GridCacheConflictInfo.class)
+    private List<GridCacheConflictInfo> conflictInfos;
 
     /** Return value flag. */
     private boolean retval;
@@ -290,16 +284,12 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
     /**
      * @param key Key to add.
      * @param val Optional update value.
-     * @param drTtl DR TTL (optional).
-     * @param drExpireTime DR expire time (optional).
-     * @param drVer DR version (optional).
+     * @param conflictInfo Conflict info (optional).
      * @param primary If given key is primary on this mapping.
      */
     public void addUpdateEntry(K key,
         @Nullable Object val,
-        long drTtl,
-        long drExpireTime,
-        @Nullable GridCacheVersion drVer,
+        @Nullable GridCacheConflictInfo conflictInfo,
         boolean primary) {
         assert val != null || op == DELETE;
         assert op != TRANSFORM || val instanceof EntryProcessor;
@@ -310,40 +300,18 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
         hasPrimary |= primary;
 
         // In case there is no DR, do not create the list.
-        if (drVer != null) {
-            if (drVers == null) {
-                drVers = new ArrayList<>();
+        if (conflictInfo != null) {
+            if (conflictInfos == null) {
+                conflictInfos = new ArrayList<>();
 
                 for (int i = 0; i < keys.size() - 1; i++)
-                    drVers.add(null);
+                    conflictInfos.add(null);
             }
 
-            drVers.add(drVer);
+            conflictInfos.add(conflictInfo);
         }
-        else if (drVers != null)
-            drVers.add(drVer);
-
-        if (drTtl >= 0) {
-            if (drTtls == null) {
-                drTtls = new GridLongList(keys.size());
-
-                for (int i = 0; i < keys.size() - 1; i++)
-                    drTtls.add(-1);
-            }
-
-            drTtls.add(drTtl);
-        }
-
-        if (drExpireTime >= 0) {
-            if (drExpireTimes == null) {
-                drExpireTimes = new GridLongList(keys.size());
-
-                for (int i = 0; i < keys.size() - 1; i++)
-                    drExpireTimes.add(-1);
-            }
-
-            drExpireTimes.add(drExpireTime);
-        }
+        else if (conflictInfos != null)
+            conflictInfos.add(null);
     }
 
     /**
@@ -378,6 +346,7 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
      * @param idx Key index.
      * @return Value.
      */
+    @SuppressWarnings("unchecked")
     public V value(int idx) {
         assert op == UPDATE : op;
 
@@ -388,6 +357,7 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
      * @param idx Key index.
      * @return Entry processor.
      */
+    @SuppressWarnings("unchecked")
     public EntryProcessor<K, V, ?> entryProcessor(int idx) {
         assert op == TRANSFORM : op;
 
@@ -434,64 +404,22 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
     /**
      * @return DR versions.
      */
-    @Nullable public List<GridCacheVersion> drVersions() {
-        return drVers;
+    @Nullable public List<GridCacheConflictInfo> conflictInfos() {
+        return conflictInfos;
     }
 
     /**
      * @param idx Index.
      * @return DR version.
      */
-    @Nullable public GridCacheVersion drVersion(int idx) {
-        if (drVers != null) {
-            assert idx >= 0 && idx < drVers.size();
+    @Nullable public GridCacheConflictInfo conflictInfo(int idx) {
+        if (conflictInfos != null) {
+            assert idx >= 0 && idx < conflictInfos.size();
 
-            return drVers.get(idx);
+            return conflictInfos.get(idx);
         }
 
         return null;
-    }
-
-    /**
-     * @return DR TTLs.
-     */
-    @Nullable public GridLongList drTtls() {
-        return drTtls;
-    }
-
-    /**
-     * @param idx Index.
-     * @return DR TTL.
-     */
-    public long drTtl(int idx) {
-        if (drTtls != null) {
-            assert idx >= 0 && idx < drTtls.size();
-
-            return drTtls.get(idx);
-        }
-
-        return -1L;
-    }
-
-    /**
-     * @return DR TTLs.
-     */
-    @Nullable public GridLongList drExpireTimes() {
-        return drExpireTimes;
-    }
-
-    /**
-     * @param idx Index.
-     * @return DR TTL.
-     */
-    public long drExpireTime(int idx) {
-        if (drExpireTimes != null) {
-            assert idx >= 0 && idx < drExpireTimes.size();
-
-            return drExpireTimes.get(idx);
-        }
-
-        return -1L;
     }
 
     /**
@@ -557,20 +485,8 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
         }
 
         switch (writer.state()) {
-            case 3:
-                if (!writer.writeMessage("drExpireTimes", drExpireTimes))
-                    return false;
-
-                writer.incrementState();
-
-            case 4:
-                if (!writer.writeMessage("drTtls", drTtls))
-                    return false;
-
-                writer.incrementState();
-
             case 5:
-                if (!writer.writeCollection("drVers", drVers, Type.MSG))
+                if (!writer.writeCollection("drVers", conflictInfos, Type.MSG))
                     return false;
 
                 writer.incrementState();
@@ -684,24 +600,8 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
             return false;
 
         switch (readState) {
-            case 3:
-                drExpireTimes = reader.readMessage("drExpireTimes");
-
-                if (!reader.isLastRead())
-                    return false;
-
-                readState++;
-
-            case 4:
-                drTtls = reader.readMessage("drTtls");
-
-                if (!reader.isLastRead())
-                    return false;
-
-                readState++;
-
             case 5:
-                drVers = reader.readCollection("drVers", Type.MSG);
+                conflictInfos = reader.readCollection("drVers", Type.MSG);
 
                 if (!reader.isLastRead())
                     return false;

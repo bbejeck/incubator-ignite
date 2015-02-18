@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.cache.distributed.near;
 import org.apache.ignite.*;
 import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.processors.cache.*;
+import org.apache.ignite.internal.processors.cache.conflict.*;
 import org.apache.ignite.internal.processors.cache.distributed.dht.*;
 import org.apache.ignite.internal.processors.cache.distributed.dht.atomic.*;
 import org.apache.ignite.internal.processors.cache.dr.*;
@@ -163,8 +164,8 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
             long ttl = res.nearTtl(i);
             long expireTime = res.nearExpireTime(i);
 
-            if (ttl != -1L && expireTime == -1L)
-                expireTime = GridCacheMapEntry.toExpireTime(ttl);
+            if (ttl != CU.TTL_NOT_CHANGED && expireTime == CU.EXPIRE_TIME_CALCULATE)
+                expireTime = CU.toExpireTime(ttl);
 
             try {
                 processNearAtomicUpdateResponse(ver,
@@ -234,10 +235,7 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
                         /*check version*/true,
                         CU.<K, V>empty(),
                         DR_NONE,
-                        ttl,
-                        expireTime,
-                        null,
-                        false,
+                        new GridCacheConflictInnerUpdate(false, null, ttl, expireTime),
                         false,
                         subjId,
                         taskName);
@@ -317,9 +315,6 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
                         long ttl = req.nearTtl(i);
                         long expireTime = req.nearExpireTime(i);
 
-                        if (ttl != CU.TTL_NOT_CHANGED && expireTime == CU.EXPIRE_TIME_CALCULATE)
-                            expireTime = GridCacheMapEntry.toExpireTime(ttl);
-
                         GridCacheUpdateAtomicResult<K, V> updRes = entry.innerUpdate(
                             ver,
                             nodeId,
@@ -337,10 +332,7 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
                             /*check version*/!req.forceTransformBackups(),
                             CU.<K, V>empty(),
                             DR_NONE,
-                            ttl,
-                            expireTime,
-                            null,
-                            false,
+                            new GridCacheConflictInnerUpdate(false, null, ttl, expireTime),
                             intercept,
                             req.subjectId(),
                             taskName);
@@ -526,13 +518,13 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
     }
 
     /** {@inheritDoc} */
-    @Override public void putAllDr(Map<? extends K, GridCacheDrInfo<V>> drMap) throws IgniteCheckedException {
-        dht.putAllDr(drMap);
+    @Override public void putAllConflict(Map<? extends K, GridCacheDrInfo<V>> drMap) throws IgniteCheckedException {
+        dht.putAllConflict(drMap);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteInternalFuture<?> putAllDrAsync(Map<? extends K, GridCacheDrInfo<V>> drMap) throws IgniteCheckedException {
-        return dht.putAllDrAsync(drMap);
+    @Override public IgniteInternalFuture<?> putAllConflictAsync(Map<? extends K, GridCacheDrInfo<V>> drMap) throws IgniteCheckedException {
+        return dht.putAllConflictAsync(drMap);
     }
 
     /** {@inheritDoc} */
@@ -645,13 +637,13 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
     }
 
     /** {@inheritDoc} */
-    @Override public void removeAllDr(Map<? extends K, GridCacheVersion> drMap) throws IgniteCheckedException {
-        dht.removeAllDr(drMap);
+    @Override public void removeAllConflict(Map<? extends K, GridCacheVersion> drMap) throws IgniteCheckedException {
+        dht.removeAllConflict(drMap);
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteInternalFuture<?> removeAllDrAsync(Map<? extends K, GridCacheVersion> drMap) throws IgniteCheckedException {
-        return dht.removeAllDrAsync(drMap);
+    @Override public IgniteInternalFuture<?> removeAllConflictAsync(Map<? extends K, GridCacheVersion> drMap) throws IgniteCheckedException {
+        return dht.removeAllConflictAsync(drMap);
     }
 
     /** {@inheritDoc} */

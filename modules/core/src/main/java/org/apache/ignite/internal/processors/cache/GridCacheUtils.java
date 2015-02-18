@@ -1614,15 +1614,15 @@ public class GridCacheUtils {
      * @return Expire time.
      */
     public static long toExpireTime(long ttl) {
-        assert ttl >= 0L : ttl;
+        assert ttl != CU.TTL_ZERO && ttl != CU.TTL_NOT_CHANGED && ttl >= 0;
 
-        if (ttl == 0L)
-            return 0L;
-        else {
-            long expireTime = U.currentTimeMillis() + ttl;
+        long expireTime = ttl == CU.TTL_ETERNAL ? CU.EXPIRE_TIME_ETERNAL : U.currentTimeMillis() + ttl;
 
-            return expireTime > 0L ? expireTime : 0L;
-        }
+        // Account for overflow.
+        if (expireTime < 0)
+            expireTime = CU.EXPIRE_TIME_ETERNAL;
+
+        return expireTime;
     }
 
     /**

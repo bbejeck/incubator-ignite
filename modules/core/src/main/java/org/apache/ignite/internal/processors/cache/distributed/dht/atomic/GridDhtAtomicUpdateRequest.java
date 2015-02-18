@@ -552,7 +552,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
      * @param idx Index.
      * @return DR version.
      */
-    @Nullable public GridCacheVersion drVersion(int idx) {
+    @Nullable public GridCacheVersion conflictVersion(int idx) {
         if (drVers != null) {
             assert idx >= 0 && idx < drVers.size();
 
@@ -601,7 +601,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
      * @param idx Index.
      * @return DR TTL.
      */
-    public long drExpireTime(int idx) {
+    public long conflictExpireTime(int idx) {
         if (drExpireTimes != null) {
             assert idx >= 0 && idx < drExpireTimes.size();
 
