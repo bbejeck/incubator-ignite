@@ -1552,14 +1552,17 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
         boolean verCheck,
         @Nullable IgnitePredicate<Cache.Entry<K, V>>[] filter,
         GridDrType drType,
-        long conflictTtl,
-        long conflictExpireTime,
+        long explicitTtl,
+        long explicitExpireTime,
         @Nullable GridCacheVersion conflictVer,
         boolean conflictResolve,
         boolean intercept,
         @Nullable UUID subjId,
         String taskName
     ) throws IgniteCheckedException, GridCacheEntryRemovedException, GridClosureException {
+        GridCacheMapEntryOperationExpiry expiry0 =
+            new GridCacheMapEntryOperationExpiry(expiryPlc, explicitTtl, explicitExpireTime);
+
         assert cctx.atomic();
 
         boolean res = true;
@@ -1604,14 +1607,12 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                         valBytes = null;
                     }
 
-                    // Get TTL and expire time (no special-purpose TTL values can be set for conflict).
-                    assert conflictTtl != CU.TTL_ZERO && conflictTtl != CU.TTL_NOT_CHANGED && conflictTtl >= 0;
-                    assert conflictExpireTime != CU.EXPIRE_TIME_CALCULATE && conflictExpireTime >= 0;
+                    GridTuple3<Long, Long, Boolean> expiration = expiry0.ttlAndExpireTime(this);
 
                     // Prepare old and new entries for conflict resolution.
                     GridCacheVersionedEntryEx<K, V> oldEntry = versionedEntry();
                     GridCacheVersionedEntryEx<K, V> newEntry = new GridCachePlainVersionedEntry<>(key, (V)writeObj,
-                        conflictTtl, conflictExpireTime, conflictVer);
+                        expiration.get1(), expiration.get2(), conflictVer != null ? conflictVer : newVer);
 
                     // Resolve conflict.
                     conflictCtx = cctx.conflictResolve(oldEntry, newEntry, verCheck);
@@ -1620,13 +1621,15 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
 
                     // Use old value?
                     if (conflictCtx.isUseOld()) {
+                        GridCacheVersion newConflictVer = conflictVer != null ? conflictVer : newVer;
+
                         // Handle special case with atomic comparator.
-                        if (!isNew() &&                                                        // Not initial value,
-                            verCheck &&                                                        // and atomic version check,
-                            oldConflictVer.dataCenterId() == conflictVer.dataCenterId() &&     // and data centers are equal,
-                            ATOMIC_VER_COMPARATOR.compare(oldConflictVer, conflictVer) == 0 && // and both versions are equal,
-                            cctx.writeThrough() &&                                             // and store is enabled,
-                            primary)                                                           // and we are primary.
+                        if (!isNew() &&                                                           // Not initial value,
+                            verCheck &&                                                           // and atomic version check,
+                            oldConflictVer.dataCenterId() == newConflictVer.dataCenterId() &&     // and data centers are equal,
+                            ATOMIC_VER_COMPARATOR.compare(oldConflictVer, newConflictVer) == 0 && // and both versions are equal,
+                            cctx.writeThrough() &&                                                // and store is enabled,
+                            primary)                                                              // and we are primary.
                         {
                             V val = rawGetOrUnmarshalUnlocked(false);
 
@@ -1664,9 +1667,6 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                         // Update value is known at this point, so update operation type.
                         op = writeObj != null ? GridCacheOperation.UPDATE : GridCacheOperation.DELETE;
                     }
-
-                    newTtl = conflictCtx.ttl();
-                    newExpireTime = conflictCtx.expireTime();
                 }
                 else
                     // Nullify conflict version on this update, so that we will use regular version during next updates.
@@ -1732,20 +1732,18 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                     oldVal = (V)cctx.kernalContext().portable().detachPortable(oldVal);
 
                 // Calculate initial TTL and expire time.
-                long initTtl = 0;
-                long initExpireTime = 0;
+                long initTtl;
+                long initExpireTime;
 
-                if (expiryPlc != null && oldVal != null) {
-                    initTtl = expiryPlc.forCreate();
+                if (expiry0.hasExpiry() && oldVal != null) {
+                    IgniteBiTuple<Long, Long> initTtlAndExpireTime = expiry0.initialTtlAndExpireTime();
 
-                    if (initTtl == CU.TTL_ZERO) {
-                        initTtl = CU.TTL_MINIMUM;
-                        initExpireTime = CU.expireTimeInPast();
-                    }
-                    else if (initTtl == CU.TTL_NOT_CHANGED)
-                        initTtl = CU.TTL_ETERNAL;
-                    else
-                        initExpireTime = CU.toExpireTime(initTtl);
+                    initTtl = initTtlAndExpireTime.get1();
+                    initExpireTime = initTtlAndExpireTime.get2();
+                }
+                else {
+                    initTtl = CU.TTL_ETERNAL;
+                    initExpireTime = CU.EXPIRE_TIME_ETERNAL;
                 }
 
                 if (oldVal != null)
@@ -1852,10 +1850,10 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 // Conflict context is null if there were no explicit conflict resolution.
                 if (conflictCtx == null) {
                     // Calculate TTL and expire time for local update.
-                    if (conflictTtl != CU.TTL_NOT_CHANGED) {
+                    if (explicitTtl != CU.TTL_NOT_CHANGED) {
                         // TTL/expireTime was sent to us from node where conflict had been resolved.
-                        newTtl = conflictTtl;
-                        newExpireTime = conflictExpireTime;
+                        newTtl = explicitTtl;
+                        newExpireTime = explicitExpireTime;
                     }
                     else {
                         if (expiryPlc != null)
@@ -1880,6 +1878,10 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                         else
                             newExpireTime = CU.toExpireTime(newTtl);
                     }
+                }
+                else {
+                    newTtl = conflictCtx.ttl();
+                    newExpireTime = conflictCtx.expireTime();
                 }
             }
             else {

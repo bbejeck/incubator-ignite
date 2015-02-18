@@ -490,7 +490,6 @@ public class GridCacheTestEntryEx<K, V> extends GridMetadataAwareAdapter impleme
             rawPut((V)val, 0),
             (V)val,
             null,
-            null,
             0L,
             0L,
             null,

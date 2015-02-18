@@ -1653,9 +1653,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                 assert !(newConflictVer instanceof GridCacheVersionEx) : newConflictVer;
 
-                if (newConflictVer == null)
-                    newConflictVer = ver;
-
                 boolean primary = !req.fastMap() || ctx.affinity().primary(ctx.localNode(), entry.key(),
                     req.topologyVersion());
 
