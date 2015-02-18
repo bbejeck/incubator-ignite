@@ -3825,7 +3825,11 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
         final boolean replicate = ctx.isDrEnabled();
         final long topVer = ctx.affinity().affinityTopologyVersion();
 
-        final ExpiryPolicy plc = ctx.expiry();
+        GridCacheProjectionImpl<K, V> prj = ctx.projectionPerCall();
+
+        ExpiryPolicy plc0 = prj != null ? prj.expiry() : null;
+
+        final ExpiryPolicy plc = plc0 != null ? plc0 : ctx.expiry();
 
         if (ctx.store().isLocalStore()) {
             IgniteDataLoaderImpl<K, V> ldr = ctx.kernalContext().<K, V>dataLoad().dataLoader(ctx.namex(), false);
@@ -4079,8 +4083,12 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
 
         ctx.kernalContext().task().setThreadContext(TC_NO_FAILOVER, true);
 
+        GridCacheProjectionImpl<K, V> prj = ctx.projectionPerCall();
+
+        ExpiryPolicy plc = prj != null ? prj.expiry() : null;
+
         return ctx.kernalContext().closure().callAsync(BROADCAST,
-            Arrays.asList(new LoadCacheClosure<>(ctx.name(), p, args)),
+            Arrays.asList(new LoadCacheClosure<>(ctx.name(), p, args, plc)),
             nodes.nodes());
     }
 
@@ -6142,6 +6150,9 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
         @IgniteInstanceResource
         private Ignite ignite;
 
+        /** */
+        private ExpiryPolicy plc;
+
         /**
          * Required by {@link Externalizable}.
          */
@@ -6153,11 +6164,17 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
          * @param cacheName Cache name.
          * @param p Predicate.
          * @param args Arguments.
+         * @param plc Explicitly specified expiry policy.
          */
-        private LoadCacheClosure(String cacheName, IgniteBiPredicate<K, V> p, Object[] args) {
+        private LoadCacheClosure(String cacheName,
+            IgniteBiPredicate<K, V> p,
+            Object[] args,
+            @Nullable ExpiryPolicy plc)
+        {
             this.cacheName = cacheName;
             this.p = p;
             this.args = args;
+            this.plc = plc;
         }
 
         /** {@inheritDoc} */
@@ -6165,6 +6182,9 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
             IgniteCache<K, V> cache = ignite.jcache(cacheName);
 
             assert cache != null : cacheName;
+
+            if (plc != null)
+                cache = cache.withExpiryPolicy(plc);
 
             cache.localLoadCache(p, args);
 
@@ -6178,6 +6198,11 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
             out.writeObject(args);
 
             U.writeString(out, cacheName);
+
+            if (plc != null)
+                out.writeObject(new IgniteExternalizableExpiryPolicy(plc));
+            else
+                out.writeObject(null);
         }
 
         /** {@inheritDoc} */
@@ -6188,6 +6213,8 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
             args = (Object[])in.readObject();
 
             cacheName = U.readString(in);
+
+            plc = (ExpiryPolicy)in.readObject();
         }
 
         /** {@inheritDoc} */

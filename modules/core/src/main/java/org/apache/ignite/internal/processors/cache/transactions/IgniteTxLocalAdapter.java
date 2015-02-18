@@ -48,7 +48,6 @@ import static org.apache.ignite.events.EventType.*;
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.*;
 import static org.apache.ignite.internal.processors.dr.GridDrType.*;
 import static org.apache.ignite.transactions.TransactionState.*;
-import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry.*;
 
 /**
  * Transaction adapter for cache transactions.
@@ -726,7 +725,7 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                         ((GridNearCacheEntry<K, V>)cached).recordDhtVersion(txEntry.dhtVersion());
 
                                         if ((txEntry.op() == CREATE || txEntry.op() == UPDATE) &&
-                                            txEntry.conflictExpireTime() == CONFLICT_EXPIRE_TIME_NOT_SET) {
+                                            txEntry.conflictExpireTime() == CU.EXPIRE_TIME_CALCULATE) {
                                             ExpiryPolicy expiry = cacheCtx.expiryForTxEntry(txEntry);
 
                                             if (expiry != null) {
@@ -747,7 +746,7 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                         txEntry.conflictVersion() : writeVersion();
 
                                     if ((op == CREATE || op == UPDATE) &&
-                                        txEntry.conflictExpireTime() == CONFLICT_EXPIRE_TIME_NOT_SET) {
+                                        txEntry.conflictExpireTime() == CU.EXPIRE_TIME_CALCULATE) {
                                         ExpiryPolicy expiry = cacheCtx.expiryForTxEntry(txEntry);
 
                                         if (expiry != null) {
@@ -782,7 +781,7 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                             if (conflictCtx.newEntry().dataCenterId() != cctx.dataCenterId())
                                                 txEntry.conflictExpireTime(conflictCtx.expireTime());
                                             else
-                                                txEntry.conflictExpireTime(CONFLICT_EXPIRE_TIME_NOT_SET);
+                                                txEntry.conflictExpireTime(CU.EXPIRE_TIME_CALCULATE);
                                         }
                                         else {
                                             assert conflictCtx.isMerge();
@@ -793,7 +792,7 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                             explicitVer = writeVersion();
 
                                             txEntry.ttl(conflictCtx.ttl());
-                                            txEntry.conflictExpireTime(CONFLICT_EXPIRE_TIME_NOT_SET);
+                                            txEntry.conflictExpireTime(CU.EXPIRE_TIME_CALCULATE);
                                         }
                                     }
                                     else

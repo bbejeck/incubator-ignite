@@ -39,7 +39,6 @@ import java.util.*;
 import java.util.concurrent.atomic.*;
 
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.*;
-import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry.*;
 import static org.apache.ignite.internal.processors.dr.GridDrType.*;
 import static org.apache.ignite.transactions.TransactionState.*;
 
@@ -529,7 +528,7 @@ public class GridDistributedTxRemoteAdapter<K, V> extends IgniteTxAdapter<K, V>
                                             if (drCtx.newEntry().dataCenterId() != cacheCtx.dataCenterId())
                                                 txEntry.conflictExpireTime(drCtx.expireTime());
                                             else
-                                                txEntry.conflictExpireTime(CONFLICT_EXPIRE_TIME_NOT_SET);
+                                                txEntry.conflictExpireTime(CU.EXPIRE_TIME_CALCULATE);
                                         }
                                         else if (drCtx.isMerge()) {
                                             op = drRes.get1();
@@ -538,7 +537,7 @@ public class GridDistributedTxRemoteAdapter<K, V> extends IgniteTxAdapter<K, V>
                                             explicitVer = writeVersion();
 
                                             txEntry.ttl(drCtx.ttl());
-                                            txEntry.conflictExpireTime(CONFLICT_EXPIRE_TIME_NOT_SET);
+                                            txEntry.conflictExpireTime(CU.EXPIRE_TIME_CALCULATE);
                                         }
                                     }
                                     else

@@ -44,9 +44,6 @@ import static org.apache.ignite.internal.processors.cache.GridCacheOperation.*;
  * equality.
  */
 public class IgniteTxEntry<K, V> implements GridPeerDeployAware, Externalizable, OptimizedMarshallable {
-    /** Special value indicating that conflict expire time is not set. */
-    public static final long CONFLICT_EXPIRE_TIME_NOT_SET = -1;
-
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -93,8 +90,8 @@ public class IgniteTxEntry<K, V> implements GridPeerDeployAware, Externalizable,
     /** Time to live. */
     private long ttl;
 
-    /** Conflict expire time (explicit) */
-    private long conflictExpireTime = CONFLICT_EXPIRE_TIME_NOT_SET;
+    /** DR expire time (explicit) */
+    private long conflictExpireTime = CU.EXPIRE_TIME_CALCULATE;
 
     /** Conflict version. */
     private GridCacheVersion conflictVer;
