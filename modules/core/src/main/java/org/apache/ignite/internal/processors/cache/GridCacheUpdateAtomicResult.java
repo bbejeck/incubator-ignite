@@ -39,9 +39,6 @@ public class GridCacheUpdateAtomicResult<K, V> {
     @GridToStringInclude
     private final V newVal;
 
-    /** New value bytes. */
-    private final byte[] newValBytes;
-
     /** New TTL. */
     private final long newTtl;
 
@@ -68,7 +65,6 @@ public class GridCacheUpdateAtomicResult<K, V> {
      * @param success Success flag.
      * @param oldVal Old value.
      * @param newVal New value.
-     * @param newValBytes New value bytes.
      * @param res Value computed by the {@link EntryProcessor}.
      * @param newTtl New TTL.
      * @param conflictExpireTime Explicit DR expire time (if any).
@@ -79,7 +75,6 @@ public class GridCacheUpdateAtomicResult<K, V> {
     public GridCacheUpdateAtomicResult(boolean success,
         @Nullable V oldVal,
         @Nullable V newVal,
-        @Nullable byte[] newValBytes,
         @Nullable EntryProcessorResult<?> res,
         long newTtl,
         long conflictExpireTime,
@@ -89,7 +84,6 @@ public class GridCacheUpdateAtomicResult<K, V> {
         this.success = success;
         this.oldVal = oldVal;
         this.newVal = newVal;
-        this.newValBytes = newValBytes;
         this.res = res;
         this.newTtl = newTtl;
         this.conflictExpireTime = conflictExpireTime;
@@ -124,13 +118,6 @@ public class GridCacheUpdateAtomicResult<K, V> {
      */
     @Nullable public V newValue() {
         return newVal;
-    }
-
-    /**
-     * @return New value bytes.
-     */
-    @Nullable public byte[] newValueBytes() {
-        return newValBytes;
     }
 
     /**
