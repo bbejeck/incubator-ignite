@@ -292,14 +292,14 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
      * @param val Optional update value.
      * @param conflictTtl Conflict TTL (optional).
      * @param conflictExpireTime Conflict expire time (optional).
-     * @param conflicVer Conflict version (optional).
+     * @param conflictVer Conflict version (optional).
      * @param primary If given key is primary on this mapping.
      */
     public void addUpdateEntry(K key,
         @Nullable Object val,
         long conflictTtl,
         long conflictExpireTime,
-        @Nullable GridCacheVersion conflicVer,
+        @Nullable GridCacheVersion conflictVer,
         boolean primary) {
         assert val != null || op == DELETE;
         assert op != TRANSFORM || val instanceof EntryProcessor;
@@ -310,7 +310,7 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
         hasPrimary |= primary;
 
         // In case there is no conflict, do not create the list.
-        if (conflicVer != null) {
+        if (conflictVer != null) {
             if (conflictVers == null) {
                 conflictVers = new ArrayList<>();
 
@@ -318,7 +318,7 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
                     conflictVers.add(null);
             }
 
-            conflictVers.add(conflicVer);
+            conflictVers.add(conflictVer);
         }
         else if (conflictVers != null)
             conflictVers.add(null);
@@ -378,6 +378,7 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
      * @param idx Key index.
      * @return Value.
      */
+    @SuppressWarnings("unchecked")
     public V value(int idx) {
         assert op == UPDATE : op;
 
@@ -388,6 +389,7 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
      * @param idx Key index.
      * @return Entry processor.
      */
+    @SuppressWarnings("unchecked")
     public EntryProcessor<K, V, ?> entryProcessor(int idx) {
         assert op == TRANSFORM : op;
 
@@ -432,7 +434,7 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
     }
 
     /**
-     * @return DR versions.
+     * @return Conflict versions.
      */
     @Nullable public List<GridCacheVersion> conflictVersions() {
         return conflictVers;
@@ -440,7 +442,7 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
 
     /**
      * @param idx Index.
-     * @return DR version.
+     * @return Conflict version.
      */
     @Nullable public GridCacheVersion conflictVersion(int idx) {
         if (conflictVers != null) {
@@ -450,13 +452,6 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
         }
 
         return null;
-    }
-
-    /**
-     * @return Conflict TTLs.
-     */
-    @Nullable public GridLongList conflictTtls() {
-        return conflictTtls;
     }
 
     /**
@@ -474,15 +469,8 @@ public class GridNearAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> im
     }
 
     /**
-     * @return Conflict expire times.
-     */
-    @Nullable public GridLongList conflictExpireTimes() {
-        return conflictExpireTimes;
-    }
-
-    /**
      * @param idx Index.
-     * @return DR TTL.
+     * @return Conflict expire time.
      */
     public long conflictExpireTime(int idx) {
         if (conflictExpireTimes != null) {
