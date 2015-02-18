@@ -21,7 +21,6 @@ import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.eviction.*;
 import org.apache.ignite.internal.managers.deployment.*;
-import org.apache.ignite.internal.processors.cache.conflict.*;
 import org.apache.ignite.internal.processors.cache.distributed.dht.*;
 import org.apache.ignite.internal.processors.cache.extras.*;
 import org.apache.ignite.internal.processors.cache.query.*;
@@ -1553,7 +1552,10 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
         boolean verCheck,
         @Nullable IgnitePredicate<Cache.Entry<K, V>>[] filter,
         GridDrType drType,
-        GridCacheConflictInnerUpdate conflict,
+        long conflictTtl,
+        long conflictExpireTime,
+        @Nullable GridCacheVersion conflictVer,
+        boolean conflictResolve,
         boolean intercept,
         @Nullable UUID subjId,
         String taskName
@@ -1586,7 +1588,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             Object transformClo = null;
 
             // Request-level conflict resolution is needed, i.e. we do not know who will win in advance.
-            if (conflict.resolve()) {
+            if (conflictResolve) {
                 GridCacheVersion oldConflictVer = version().conflictVersion();
 
                 // Cache is conflict-enabled.
@@ -1603,13 +1605,13 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                     }
 
                     // Get TTL and expire time (no special-purpose TTL values can be set for conflict).
-                    assert conflict.ttl() != CU.TTL_ZERO && conflict.ttl() != CU.TTL_NOT_CHANGED && conflict.ttl() >= 0;
-                    assert conflict.expireTime() != CU.EXPIRE_TIME_CALCULATE && conflict.expireTime() >= 0;
+                    assert conflictTtl != CU.TTL_ZERO && conflictTtl != CU.TTL_NOT_CHANGED && conflictTtl >= 0;
+                    assert conflictExpireTime != CU.EXPIRE_TIME_CALCULATE && conflictExpireTime >= 0;
 
                     // Prepare old and new entries for conflict resolution.
                     GridCacheVersionedEntryEx<K, V> oldEntry = versionedEntry();
                     GridCacheVersionedEntryEx<K, V> newEntry = new GridCachePlainVersionedEntry<>(key, (V)writeObj,
-                        conflict.ttl(), conflict.expireTime(), conflict.version());
+                        conflictTtl, conflictExpireTime, conflictVer);
 
                     // Resolve conflict.
                     conflictCtx = cctx.conflictResolve(oldEntry, newEntry, verCheck);
@@ -1619,12 +1621,12 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                     // Use old value?
                     if (conflictCtx.isUseOld()) {
                         // Handle special case with atomic comparator.
-                        if (!isNew() &&                                                               // Not initial value,
-                            verCheck &&                                                               // and atomic version check,
-                            oldConflictVer.dataCenterId() == conflict.version().dataCenterId() &&     // and data centers are equal,
-                            ATOMIC_VER_COMPARATOR.compare(oldConflictVer, conflict.version()) == 0 && // and both versions are equal,
-                            cctx.writeThrough() &&                                                    // and store is enabled,
-                            primary)                                                                  // and we are primary.
+                        if (!isNew() &&                                                        // Not initial value,
+                            verCheck &&                                                        // and atomic version check,
+                            oldConflictVer.dataCenterId() == conflictVer.dataCenterId() &&     // and data centers are equal,
+                            ATOMIC_VER_COMPARATOR.compare(oldConflictVer, conflictVer) == 0 && // and both versions are equal,
+                            cctx.writeThrough() &&                                             // and store is enabled,
+                            primary)                                                           // and we are primary.
                         {
                             V val = rawGetOrUnmarshalUnlocked(false);
 
@@ -1655,7 +1657,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                             writeObj = conflictCtx.mergeValue();
                             valBytes = null;
 
-                            conflict.clearVersion(); // Update will be considered as local.
+                            conflictVer = null;
                         }
                         else
                             assert conflictCtx.isUseNew();
@@ -1669,7 +1671,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 }
                 else
                     // Nullify conflict version on this update, so that we will use regular version during next updates.
-                    conflict.clearVersion();
+                    conflictVer = null;
             }
 
             // Perform version check only in case there was no explicit conflict resolution.
@@ -1841,29 +1843,25 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             boolean hadVal = hasValueUnlocked();
 
             // Incorporate conflict version into new version if needed.
-            if (conflict.version() != null && conflict.version() != newVer)
+            if (conflictVer != null && conflictVer != newVer)
                 newVer = new GridCacheVersionEx(newVer.topologyVersion(),
                     newVer.globalTime(),
                     newVer.order(),
                     newVer.nodeOrder(),
                     newVer.dataCenterId(),
-                    conflict.version());
+                    conflictVer);
 
 
             if (op == GridCacheOperation.UPDATE) {
                 // Conflict context is null if there were no explicit conflict resolution.
                 if (conflictCtx == null) {
                     // Calculate TTL and expire time for local update.
-                    if (conflict.hasExplicitTtl()) {
+                    if (conflictTtl != CU.TTL_NOT_CHANGED) {
                         // TTL/expireTime was sent to us from node where conflict had been resolved.
-                        assert conflict.hasExplicitExpireTime() : conflict.expireTime();
-
-                        newTtl = conflict.ttl();
-                        newExpireTime = conflict.expireTime();
+                        newTtl = conflictTtl;
+                        newExpireTime = conflictExpireTime;
                     }
                     else {
-                        assert !conflict.hasExplicitExpireTime() : conflict.expireTime();
-
                         if (expiryPlc != null)
                             newTtl = hadVal ? expiryPlc.forUpdate() : expiryPlc.forCreate();
                         else

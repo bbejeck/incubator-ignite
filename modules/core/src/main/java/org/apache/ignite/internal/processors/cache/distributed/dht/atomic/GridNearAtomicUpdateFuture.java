@@ -25,7 +25,6 @@ import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.cluster.*;
 import org.apache.ignite.internal.managers.discovery.*;
 import org.apache.ignite.internal.processors.cache.*;
-import org.apache.ignite.internal.processors.cache.conflict.*;
 import org.apache.ignite.internal.processors.cache.distributed.dht.*;
 import org.apache.ignite.internal.processors.cache.distributed.near.*;
 import org.apache.ignite.internal.processors.cache.dr.*;
@@ -521,31 +520,39 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
             K key = F.first(keys);
 
             Object val;
-            GridCacheConflictInfo conflictInfo;
+            GridCacheVersion conflictVer;
+            long conflictTtl;
+            long conflictExpireTime;
 
             if (vals != null) {
                 // Regular PUT.
                 val = F.first(vals);
-                conflictInfo = null;
+                conflictVer = null;
+                conflictTtl = CU.TTL_NOT_CHANGED;
+                conflictExpireTime = CU.EXPIRE_TIME_CALCULATE;
             }
             else if (conflictPutVals != null) {
                 // Conflict PUT.
                 GridCacheDrInfo<V> conflictPutVal =  F.first(conflictPutVals);
 
                 val = conflictPutVal.value();
-                conflictInfo = create(conflictPutVal.version(), conflictPutVal.ttl(),
-                    conflictPutVal.expireTime());
+                conflictVer = conflictPutVal.version();
+                conflictTtl = conflictPutVal.ttl();
+                conflictExpireTime = conflictPutVal.expireTime();
             }
             else if (conflictRmvVals != null) {
                 // Conflict REMOVE.
                 val = null;
-                conflictInfo = create(F.first(conflictRmvVals), CU.TTL_NOT_CHANGED,
-                    CU.EXPIRE_TIME_CALCULATE);
+                conflictVer = F.first(conflictRmvVals);
+                conflictTtl = CU.TTL_NOT_CHANGED;
+                conflictExpireTime = CU.EXPIRE_TIME_CALCULATE;
             }
             else {
                 // Regular REMOVE.
                 val = null;
-                conflictInfo = null;
+                conflictVer = null;
+                conflictTtl = CU.TTL_NOT_CHANGED;
+                conflictExpireTime = CU.EXPIRE_TIME_CALCULATE;
             }
 
             // We still can get here if user pass map with single element.
@@ -596,7 +603,7 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
                 subjId,
                 taskNameHash);
 
-            req.addUpdateEntry(key, val, conflictInfo, true);
+            req.addUpdateEntry(key, val, conflictTtl, conflictExpireTime, conflictVer, true);
 
             single = true;
 
@@ -640,11 +647,15 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
                 }
 
                 Object val;
-                GridCacheConflictInfo conflictInfo;
+                GridCacheVersion conflictVer;
+                long conflictTtl;
+                long conflictExpireTime;
 
                 if (vals != null) {
                     val = it.next();
-                    conflictInfo = null;
+                    conflictVer = null;
+                    conflictTtl = CU.TTL_NOT_CHANGED;
+                    conflictExpireTime = CU.EXPIRE_TIME_CALCULATE;
 
                     if (val == null) {
                         NullPointerException err = new NullPointerException("Null value.");
@@ -658,17 +669,21 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
                     GridCacheDrInfo<V> conflictPutVal =  conflictPutValsIt.next();
 
                     val = conflictPutVal.value();
-                    conflictInfo = create(conflictPutVal.version(), conflictPutVal.ttl(),
-                        conflictPutVal.expireTime());
+                    conflictVer = conflictPutVal.version();
+                    conflictTtl =  conflictPutVal.ttl();
+                    conflictExpireTime = conflictPutVal.expireTime();
                 }
                 else if (conflictRmvVals != null) {
                     val = null;
-                    conflictInfo = create(conflictRmvValsIt.next(), CU.TTL_NOT_CHANGED,
-                        CU.EXPIRE_TIME_CALCULATE);
+                    conflictVer = conflictRmvValsIt.next();
+                    conflictTtl = CU.TTL_NOT_CHANGED;
+                    conflictExpireTime = CU.EXPIRE_TIME_CALCULATE;
                 }
                 else {
                     val = null;
-                    conflictInfo = null;
+                    conflictVer = null;
+                    conflictTtl = CU.TTL_NOT_CHANGED;
+                    conflictExpireTime = CU.EXPIRE_TIME_CALCULATE;
                 }
 
                 if (val == null && op != GridCacheOperation.DELETE)
@@ -716,7 +731,7 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
                             "Invalid mapping state [old=" + old + ", remap=" + remap + ']';
                     }
 
-                    mapped.addUpdateEntry(key, val, conflictInfo, i == 0);
+                    mapped.addUpdateEntry(key, val, conflictTtl, conflictExpireTime, conflictVer, i == 0);
 
                     i++;
                 }
@@ -736,21 +751,6 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
             single = false;
 
         doUpdate(pendingMappings);
-    }
-
-    // TODO: IGNITE-283: Remove.
-    public static GridCacheConflictInfo create(GridCacheVersion ver, long ttl, long expireTime) {
-        if (ttl == CU.TTL_NOT_CHANGED) {
-            assert expireTime == CU.EXPIRE_TIME_CALCULATE;
-
-            return new GridCacheNoTtlConflictInfo(ver);
-        }
-        else {
-            assert ttl != CU.TTL_ZERO && ttl >= 0;
-            assert expireTime != CU.EXPIRE_TIME_CALCULATE && expireTime >= 0;
-
-            return new GridCacheTtlConflictInfo(ver, ttl, expireTime);
-        }
     }
 
     /**

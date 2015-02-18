@@ -689,7 +689,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
 
         switch (writer.state()) {
             case 3:
-                if (!writer.writeMessage("drExpireTimes", drExpireTimes))
+                if (!writer.writeMessage("conflictExpireTimes", drExpireTimes))
                     return false;
 
                 writer.incrementState();
@@ -822,7 +822,7 @@ public class GridDhtAtomicUpdateRequest<K, V> extends GridCacheMessage<K, V> imp
 
         switch (readState) {
             case 3:
-                drExpireTimes = reader.readMessage("drExpireTimes");
+                drExpireTimes = reader.readMessage("conflictExpireTimes");
 
                 if (!reader.isLastRead())
                     return false;

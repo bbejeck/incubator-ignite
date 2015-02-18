@@ -20,7 +20,6 @@ package org.apache.ignite.internal.processors.cache.distributed.near;
 import org.apache.ignite.*;
 import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.processors.cache.*;
-import org.apache.ignite.internal.processors.cache.conflict.*;
 import org.apache.ignite.internal.processors.cache.distributed.dht.*;
 import org.apache.ignite.internal.processors.cache.distributed.dht.atomic.*;
 import org.apache.ignite.internal.processors.cache.dr.*;
@@ -235,7 +234,10 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
                         /*check version*/true,
                         CU.<K, V>empty(),
                         DR_NONE,
-                        new GridCacheConflictInnerUpdate(false, null, ttl, expireTime),
+                        ttl,
+                        expireTime,
+                        null,
+                        false,
                         false,
                         subjId,
                         taskName);
@@ -332,7 +334,10 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
                             /*check version*/!req.forceTransformBackups(),
                             CU.<K, V>empty(),
                             DR_NONE,
-                            new GridCacheConflictInnerUpdate(false, null, ttl, expireTime),
+                            ttl,
+                            expireTime,
+                            null,
+                            false,
                             intercept,
                             req.subjectId(),
                             taskName);

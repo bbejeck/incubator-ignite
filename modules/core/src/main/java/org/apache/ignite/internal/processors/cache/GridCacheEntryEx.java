@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.cache;
 
 import org.apache.ignite.*;
 import org.apache.ignite.cache.eviction.*;
-import org.apache.ignite.internal.processors.cache.conflict.*;
 import org.apache.ignite.internal.processors.cache.distributed.*;
 import org.apache.ignite.internal.processors.cache.transactions.*;
 import org.apache.ignite.internal.processors.cache.version.*;
@@ -427,7 +426,7 @@ public interface GridCacheEntryEx<K, V> {
      * @param conflictTtl Conflict TTL (if any).
      * @param conflictExpireTime Conflict expire time (if any).
      * @param conflictVer DR version (if any).
-     * @param drResolve If {@code true} then performs DR conflicts resolution.
+     * @param conflictResolve If {@code true} then performs conflicts resolution.
      * @param intercept If {@code true} then calls cache interceptor.
      * @param subjId Subject ID initiated this update.
      * @param taskName Task name.
@@ -456,7 +455,10 @@ public interface GridCacheEntryEx<K, V> {
         boolean checkVer,
         @Nullable IgnitePredicate<Cache.Entry<K, V>>[] filter,
         GridDrType drType,
-        GridCacheConflictInnerUpdate conflict,
+        long conflictTtl,
+        long conflictExpireTime,
+        @Nullable GridCacheVersion conflictVer,
+        boolean conflictResolve,
         boolean intercept,
         @Nullable UUID subjId,
         String taskName
