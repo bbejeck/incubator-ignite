@@ -3257,10 +3257,8 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
 
         IgniteTxEntry<K, V> e = entry(key);
 
-        if (e != null) {
+        if (e != null)
             e.expiry(expiryPlc);
-            e.conflictExpireTime(CU.EXPIRE_TIME_CALCULATE);
-        }
     }
 
     /**
@@ -3277,8 +3275,10 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
 
         if (e != null) {
             e.ttl(ttl);
-            e.expiry(null);
+
             e.conflictExpireTime(expireTime);
+
+            e.expiry(null);
         }
 
         return e != null;
