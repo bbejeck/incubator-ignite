@@ -1723,7 +1723,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     if (updRes.sendToDht()) { // Send to backups even in case of remove-remove scenarios.
                         GridCacheVersionConflictContext<K, V> conflictCtx = updRes.conflictResolveResult();
 
-                        if (ctx == null)
+                        if (conflictCtx == null)
                             newConflictVer = null;
                         else if (conflictCtx.isMerge()) {
                             newConflictVer = null; // Conflict version is discarded in case of merge.
