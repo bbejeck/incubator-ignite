@@ -1383,6 +1383,9 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
 
                     updated = cctx.unwrapTemporary(entry.getValue());
 
+                    if (cctx.portableEnabled() && entry.modified())
+                        updated = (V)cctx.marshalToPortable(updated);
+
                     invokeRes = computed != null ? new CacheInvokeResult<>(cctx.unwrapTemporary(computed)) : null;
                 }
                 catch (Exception e) {
@@ -1796,6 +1799,9 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                     Object computed = entryProcessor.process(entry, invokeArgs);
 
                     updated = cctx.unwrapTemporary(entry.getValue());
+
+                    if (cctx.portableEnabled() && entry.modified())
+                        updated = (V)cctx.marshalToPortable(updated);
 
                     if (computed != null)
                         invokeRes = new CacheInvokeResult<>(cctx.unwrapTemporary(computed));
@@ -3583,7 +3589,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             updateTtl(ttl);
 
             /*
-            TODO IGNITE-41.
+            TODO IGNITE-305.
             try {
                 if (var == null || ver.equals(version()))
                     updateTtl(ttl);
