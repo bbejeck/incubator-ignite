@@ -3901,9 +3901,9 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
                     throws IgniteException {
                     assert ver == null;
 
-                    Long ttl = CU.ttlForLoad(plc);
+                    long ttl = CU.ttlForLoad(plc);
 
-                    if (ttl == null)
+                    if (ttl == CU.TTL_ZERO)
                         return;
 
                     loadEntry(key, val, ver0, p, topVer, replicate, ttl);
@@ -4108,9 +4108,9 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
 
             ctx.store().loadAllFromStore(null, keys, new CI2<K, V>() {
                 @Override public void apply(K key, V val) {
-                    Long ttl = CU.ttlForLoad(plc0);
+                    long ttl = CU.ttlForLoad(plc0);
 
-                    if (ttl == null)
+                    if (ttl == CU.TTL_ZERO)
                         return;
 
                     loadEntry(key, val, ver0, null, topVer, replicate, ttl);

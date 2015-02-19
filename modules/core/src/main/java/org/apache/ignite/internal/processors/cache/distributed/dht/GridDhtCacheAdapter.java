@@ -440,9 +440,9 @@ public abstract class GridDhtCacheAdapter<K, V> extends GridDistributedCacheAdap
                 GridCacheEntryEx<K, V> entry = null;
 
                 try {
-                    Long ttl = CU.ttlForLoad(plc);
+                    long ttl = CU.ttlForLoad(plc);
 
-                    if (ttl == null)
+                    if (ttl == CU.TTL_ZERO)
                         return;
 
                     if (ctx.portableEnabled()) {

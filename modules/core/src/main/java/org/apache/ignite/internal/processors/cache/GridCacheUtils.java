@@ -1715,21 +1715,19 @@ public class GridCacheUtils {
      * Get TTL for load operation.
      *
      * @param plc Expiry policy.
-     * @return TTL for load operation or {@code null} in case object should not be loaded further.
+     * @return TTL for load operation or {@link #TTL_ZERO} in case of immediate expiration.
      */
     public static Long ttlForLoad(ExpiryPolicy plc) {
         if (plc != null) {
-            long ttl = CU.toTtl(plc.getExpiryForCreation());
+            long ttl = toTtl(plc.getExpiryForCreation());
 
-            if (ttl == CU.TTL_ZERO)
-                return null;
-            else if (ttl == CU.TTL_NOT_CHANGED)
-                return CU.TTL_ETERNAL;
-            else
-                return ttl;
+            if (ttl == TTL_NOT_CHANGED)
+                ttl = TTL_ETERNAL;
+
+            return ttl;
         }
         else
-            return CU.TTL_ETERNAL;
+            return TTL_ETERNAL;
     }
 
     /**
