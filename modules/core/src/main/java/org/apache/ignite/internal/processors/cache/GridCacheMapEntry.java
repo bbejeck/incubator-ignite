@@ -1576,6 +1576,11 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
 
         EntryProcessorResult<?> invokeRes = null;
 
+        // System TTL/ET which may have special values.
+        long newSysTtl;
+        long newSysExpireTime;
+
+        // TTL/ET which will be passed to entry on update.
         long newTtl;
         long newExpireTime;
 
@@ -1856,40 +1861,49 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                     // Calculate TTL and expire time for local update.
                     if (explicitTtl != CU.TTL_NOT_CHANGED) {
                         // TTL/expireTime was sent to us from node where conflict had been resolved.
-                        newTtl = explicitTtl;
-                        newExpireTime = explicitExpireTime;
+                        assert explicitExpireTime != CU.EXPIRE_TIME_CALCULATE;
+
+                        newSysTtl = newTtl = explicitTtl;
+                        newSysExpireTime = newExpireTime = explicitExpireTime;
                     }
                     else {
-                        if (expiryPlc != null)
-                            newTtl = hadVal ? expiryPlc.forUpdate() : expiryPlc.forCreate();
-                        else
-                            newTtl = CU.TTL_NOT_CHANGED;
+                        newSysTtl = expiryPlc == null ? CU.TTL_NOT_CHANGED :
+                            hadVal ? expiryPlc.forUpdate() : expiryPlc.forCreate();
 
-                        if (newTtl == CU.TTL_NOT_CHANGED) {
+                        if (newSysTtl == CU.TTL_NOT_CHANGED) {
+                            newSysExpireTime = CU.EXPIRE_TIME_CALCULATE;
                             newTtl = ttlExtras();
                             newExpireTime = expireTimeExtras();
                         }
-                        else if (newTtl == CU.TTL_ZERO) {
+                        else if (newSysTtl == CU.TTL_ZERO) {
                             op = GridCacheOperation.DELETE;
 
-                            // This is delete, so make TTL and expire time eternal.
+                            newSysTtl = CU.TTL_NOT_CHANGED;
+                            newSysExpireTime = CU.EXPIRE_TIME_CALCULATE;
+
                             newTtl = CU.TTL_ETERNAL;
                             newExpireTime = CU.EXPIRE_TIME_ETERNAL;
 
                             updated = null;
                             valBytes = null;
                         }
-                        else
+                        else {
+                            newSysExpireTime = CU.EXPIRE_TIME_CALCULATE;
+                            newTtl = newSysTtl;
                             newExpireTime = CU.toExpireTime(newTtl);
+                        }
                     }
                 }
                 else {
-                    newTtl = conflictCtx.ttl();
-                    newExpireTime = conflictCtx.expireTime();
+                    newSysTtl = newTtl = conflictCtx.ttl();
+                    newSysExpireTime = newExpireTime = conflictCtx.expireTime();
                 }
             }
             else {
                 assert op == GridCacheOperation.DELETE;
+
+                newSysTtl = CU.TTL_NOT_CHANGED;
+                newSysExpireTime = CU.EXPIRE_TIME_CALCULATE;
 
                 newTtl = CU.TTL_ETERNAL;
                 newExpireTime = CU.EXPIRE_TIME_ETERNAL;
@@ -2024,10 +2038,10 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 boolean hasValPtr = valPtr != 0;
 
                 // Clear value on backup. Entry will be removed from cache when it got evicted from queue.
-                assert newTtl == CU.TTL_ETERNAL;
-                assert newExpireTime == CU.EXPIRE_TIME_ETERNAL;
+                update(null, null, CU.TTL_ETERNAL, CU.EXPIRE_TIME_ETERNAL, newVer);
 
-                update(null, null, newTtl, newExpireTime, newVer);
+                assert newSysTtl == CU.TTL_NOT_CHANGED;
+                assert newSysExpireTime == CU.EXPIRE_TIME_CALCULATE;
 
                 if (cctx.offheapTiered() && hasValPtr) {
                     boolean rmv = cctx.swap().removeOffheap(key, getOrMarshalKeyBytes());
@@ -2088,18 +2102,12 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
         if (log.isDebugEnabled())
             log.debug("Updated cache entry [val=" + val + ", old=" + oldVal + ", entry=" + this + ']');
 
-        // Ensure that TTL / expire stuff is not sent over wire when not needed.
-        if (!res || op == GridCacheOperation.DELETE) {
-            newTtl = CU.TTL_NOT_CHANGED;
-            newExpireTime = CU.EXPIRE_TIME_CALCULATE;
-        }
-
         return new GridCacheUpdateAtomicResult<>(res,
             oldVal,
             updated,
             invokeRes,
-            newTtl,
-            newExpireTime,
+            newSysTtl,
+            newSysExpireTime,
             enqueueVer,
             conflictCtx,
             true);

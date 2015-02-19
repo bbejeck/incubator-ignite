@@ -1985,7 +1985,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                         req.subjectId(),
                         taskName);
 
-                    //assert updRes.newTtl() == CU.TTL_NOT_CHANGED || expiry != null;
+                    assert updRes.newTtl() == CU.TTL_NOT_CHANGED || expiry != null;
 
                     if (intercept) {
                         if (op == UPDATE)
