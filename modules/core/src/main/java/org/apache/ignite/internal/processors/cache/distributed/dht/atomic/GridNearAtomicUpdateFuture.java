@@ -85,11 +85,11 @@ public class GridNearAtomicUpdateFuture<K, V> extends GridFutureAdapter<Object>
     /** Optional arguments for entry processor. */
     private Object[] invokeArgs;
 
-    /** DR put values. */
+    /** Conflict put values. */
     @SuppressWarnings({"FieldAccessedSynchronizedAndUnsynchronized"})
     private Collection<GridCacheDrInfo<V>> conflictPutVals;
 
-    /** DR remove values. */
+    /** Conflict remove values. */
     @SuppressWarnings({"FieldAccessedSynchronizedAndUnsynchronized"})
     private Collection<GridCacheVersion> conflictRmvVals;
 
