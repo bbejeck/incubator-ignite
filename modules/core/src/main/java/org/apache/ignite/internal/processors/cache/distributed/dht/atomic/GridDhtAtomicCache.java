@@ -472,7 +472,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
     /** {@inheritDoc} */
     @Override public IgniteInternalFuture<?> putAllConflictAsync(Map<? extends K, GridCacheDrInfo<V>> conflictMap) {
-        // TODO IGNITE-283: Invalid metrics update in case of local store.
         ctx.dr().onReceiveCacheEntriesReceived(conflictMap.size());
 
         return updateAllAsync0(null,
@@ -563,7 +562,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
     /** {@inheritDoc} */
     @Override public IgniteInternalFuture<?> removeAllConflictAsync(Map<? extends K, GridCacheVersion> conflictMap) {
-        // TODO: IGNITE-283: Invalid metrics update in case of local store.
         ctx.dr().onReceiveCacheEntriesReceived(conflictMap.size());
 
         return removeAllAsync0(null, conflictMap, null, false, false, null);
@@ -1124,7 +1122,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                         GridCacheReturn<Object> retVal = null;
 
-                        // TODO: IGNITE-283: Merge local store and DR checks into single method inside ctx.
                         if (keys.size() > 1 &&                             // Several keys ...
                             writeThrough() &&                              // and store is enabled ...
                             !ctx.store().isLocalStore() &&                 // and this is not local store ...

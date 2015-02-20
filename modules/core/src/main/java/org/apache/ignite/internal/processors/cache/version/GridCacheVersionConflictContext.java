@@ -91,18 +91,6 @@ public class GridCacheVersionConflictContext<K, V> {
 
     /**
      * Force cache to apply new entry overwriting old (existing) entry.
-     * <p>
-     * Note that updates from remote data centers always have explicit TTL , while local data center
-     * updates will only have explicit TTL in case {@link CacheEntry#timeToLive(long)} was called
-     * before update. In the latter case new entry will pick TTL of the old (existing) entry, even
-     * if it was set through update from remote data center. it means that depending on concurrent
-     * update timings new update might pick unexpected TTL. For example, consider that three updates
-     * of the same key are performed: local update with explicit TTL (1) followed by another local
-     * update without explicit TTL (2) and one remote update (3). In this case you might expect that
-     * update (2) will pick TTL set during update (1). However, in case update (3) occurrs between (1)
-     * and (2) and it overwrites (1) during conflict resolution, then update (2) will pick TTL of
-     * update (3). To have predictable TTL in such cases you should either always set it explicitly
-     * through {@code GridCacheEntry.timeToLive(long)} or use {@link #merge(Object, long)}.
      */
     public void useNew() {
         state = State.USE_NEW;
