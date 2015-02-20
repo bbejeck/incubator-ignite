@@ -1860,11 +1860,14 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 if (conflictCtx == null) {
                     // Calculate TTL and expire time for local update.
                     if (explicitTtl != CU.TTL_NOT_CHANGED) {
-                        // TTL/expireTime was sent to us from node where conflict had been resolved.
-                        assert explicitExpireTime != CU.EXPIRE_TIME_CALCULATE;
+                        // If conflict existed, expire time must be explicit.
+                        assert conflictVer == null || explicitExpireTime != CU.EXPIRE_TIME_CALCULATE;
 
                         newSysTtl = newTtl = explicitTtl;
-                        newSysExpireTime = newExpireTime = explicitExpireTime;
+                        newSysExpireTime = explicitExpireTime;
+
+                        newExpireTime = explicitExpireTime != CU.EXPIRE_TIME_CALCULATE ?
+                            explicitExpireTime : CU.toExpireTime(explicitTtl);
                     }
                     else {
                         newSysTtl = expiryPlc == null ? CU.TTL_NOT_CHANGED :
