@@ -741,7 +741,7 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                     V val = res.get2();
                                     byte[] valBytes = res.get3();
 
-                                    // Deal with DR conflicts.
+                                    // Deal with conflicts.
                                     GridCacheVersion explicitVer = txEntry.conflictVersion() != null ?
                                         txEntry.conflictVersion() : writeVersion();
 
@@ -762,17 +762,18 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                         }
                                     }
 
-                                    boolean drNeedResolve = cacheCtx.conflictNeedResolve();
+                                    boolean conflictNeedResolve = cacheCtx.conflictNeedResolve();
 
                                     GridCacheVersionConflictContext<K, V> conflictCtx = null;
 
-                                    if (drNeedResolve) {
+                                    if (conflictNeedResolve) {
                                         IgniteBiTuple<GridCacheOperation, GridCacheVersionConflictContext<K, V>>
-                                            drRes = conflictResolve(op, txEntry, val, valBytes, explicitVer, cached);
+                                            conflictRes = conflictResolve(op, txEntry, val, valBytes, explicitVer,
+                                                cached);
 
-                                        assert drRes != null;
+                                        assert conflictRes != null;
 
-                                        conflictCtx = drRes.get2();
+                                        conflictCtx = conflictRes.get2();
 
                                         if (conflictCtx.isUseOld())
                                             op = NOOP;
@@ -787,7 +788,7 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                         else {
                                             assert conflictCtx.isMerge();
 
-                                            op = drRes.get1();
+                                            op = conflictRes.get1();
                                             val = conflictCtx.mergeValue();
                                             valBytes = null;
                                             explicitVer = writeVersion();
@@ -800,8 +801,8 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                         // Nullify explicit version so that innerSet/innerRemove will work as usual.
                                         explicitVer = null;
 
-                                    if (sndTransformedVals || drNeedResolve) {
-                                        assert sndTransformedVals && cacheCtx.isReplicated() || drNeedResolve;
+                                    if (sndTransformedVals || conflictNeedResolve) {
+                                        assert sndTransformedVals && cacheCtx.isReplicated() || conflictNeedResolve;
 
                                         txEntry.value(val, true, false);
                                         txEntry.valueBytes(valBytes);

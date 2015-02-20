@@ -512,11 +512,11 @@ public class GridDistributedTxRemoteAdapter<K, V> extends IgniteTxAdapter<K, V>
                                     if (txEntry.ttl() == CU.TTL_ZERO)
                                         op = DELETE;
 
-                                    boolean drNeedResolve = cacheCtx.conflictNeedResolve();
+                                    boolean conflictNeedResolve = cacheCtx.conflictNeedResolve();
 
                                     GridCacheVersionConflictContext<K, V> drCtx = null;
 
-                                    if (drNeedResolve) {
+                                    if (conflictNeedResolve) {
                                         IgniteBiTuple<GridCacheOperation, GridCacheVersionConflictContext<K, V>>
                                             drRes = conflictResolve(op, txEntry, val, valBytes, explicitVer, cached);
 
