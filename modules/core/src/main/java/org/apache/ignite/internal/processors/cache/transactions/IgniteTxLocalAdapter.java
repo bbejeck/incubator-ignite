@@ -764,14 +764,15 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
 
                                     boolean drNeedResolve = cacheCtx.conflictNeedResolve();
 
+                                    GridCacheVersionConflictContext<K, V> conflictCtx = null;
+
                                     if (drNeedResolve) {
                                         IgniteBiTuple<GridCacheOperation, GridCacheVersionConflictContext<K, V>>
-                                            drRes = conflictResolve(op, txEntry.key(), val, valBytes, txEntry.ttl(),
-                                                txEntry.conflictExpireTime(), explicitVer, cached);
+                                            drRes = conflictResolve(op, txEntry, val, valBytes, explicitVer, cached);
 
                                         assert drRes != null;
 
-                                        GridCacheVersionConflictContext<K, V> conflictCtx = drRes.get2();
+                                        conflictCtx = drRes.get2();
 
                                         if (conflictCtx.isUseOld())
                                             op = NOOP;
@@ -905,8 +906,10 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
                                             "Transaction does not own lock for group lock entry during  commit [tx=" +
                                                 this + ", txEntry=" + txEntry + ']';
 
-                                        if (txEntry.ttl() != CU.TTL_NOT_CHANGED)
-                                            cached.updateTtl(null, txEntry.ttl());
+                                        if (conflictCtx == null || !conflictCtx.isUseOld()) {
+                                            if (txEntry.ttl() != CU.TTL_NOT_CHANGED)
+                                                cached.updateTtl(null, txEntry.ttl());
+                                        }
 
                                         if (log.isDebugEnabled())
                                             log.debug("Ignoring NOOP entry when committing: " + txEntry);
@@ -3257,8 +3260,10 @@ public abstract class IgniteTxLocalAdapter<K, V> extends IgniteTxAdapter<K, V>
 
         IgniteTxEntry<K, V> e = entry(key);
 
-        if (e != null)
+        if (e != null) {
             e.expiry(expiryPlc);
+            e.conflictExpireTime(CU.EXPIRE_TIME_CALCULATE);
+        }
     }
 
     /**

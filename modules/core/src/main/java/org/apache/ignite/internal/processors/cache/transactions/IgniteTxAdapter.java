@@ -1287,11 +1287,9 @@ public abstract class IgniteTxAdapter<K, V> extends GridMetadataAwareAdapter
      * Resolve DR conflict.
      *
      * @param op Initially proposed operation.
-     * @param key Key.
+     * @param txEntry TX entry being updated.
      * @param newVal New value.
      * @param newValBytes New value bytes.
-     * @param newTtl New TTL.
-     * @param newDrExpireTime New explicit DR expire time.
      * @param newVer New version.
      * @param old Old entry.
      * @return Tuple with adjusted operation type and conflict context.
@@ -1299,9 +1297,49 @@ public abstract class IgniteTxAdapter<K, V> extends GridMetadataAwareAdapter
      * @throws GridCacheEntryRemovedException If entry got removed.
      */
     protected IgniteBiTuple<GridCacheOperation, GridCacheVersionConflictContext<K, V>> conflictResolve(
-        GridCacheOperation op, K key, V newVal, byte[] newValBytes, long newTtl, long newDrExpireTime,
-        GridCacheVersion newVer, GridCacheEntryEx<K, V> old)
+        GridCacheOperation op, IgniteTxEntry txEntry, V newVal, byte[] newValBytes, GridCacheVersion newVer,
+        GridCacheEntryEx<K, V> old)
         throws IgniteCheckedException, GridCacheEntryRemovedException {
+        assert newVer != null;
+
+        // 1. Convert TTL and expire time.
+        long newTtl = txEntry.ttl();
+        long newExpireTime = txEntry.conflictExpireTime();
+
+        if (newTtl == CU.TTL_NOT_CHANGED) {
+            assert op == DELETE || newVer.conflictVersion().dataCenterId() == cctx.dataCenterId() :
+                "TTL can be not-explicit only for local updates.";
+
+            ExpiryPolicy expiry = txEntry.context().expiryForTxEntry(txEntry);
+
+            if (expiry == null) {
+                newTtl = CU.TTL_ETERNAL;
+                newExpireTime = CU.EXPIRE_TIME_ETERNAL;
+            }
+            else {
+                if (op == DELETE) {
+                    newTtl = CU.TTL_ETERNAL;
+                    newExpireTime = CU.EXPIRE_TIME_ETERNAL;
+                }
+                else if (op == CREATE)
+                    newTtl = CU.toTtl(expiry.getExpiryForUpdate());
+                else if (op == UPDATE)
+                    newTtl = CU.toTtl(expiry.getExpiryForUpdate());
+            }
+
+            if (newTtl == CU.TTL_ZERO) {
+                newTtl = CU.TTL_MINIMUM;
+                newExpireTime = CU.expireTimeInPast();
+            }
+        }
+        else if (newTtl == CU.TTL_ZERO) {
+            assert newVer.conflictVersion().dataCenterId() == cctx.dataCenterId() :
+                "TTL can be not-explicit only for local updates.";
+
+            newTtl = CU.TTL_MINIMUM;
+            newExpireTime = CU.expireTimeInPast();
+        }
+
         // Construct old entry info.
         GridCacheVersionedEntryEx<K, V> oldEntry = old.versionedEntry();
 
@@ -1309,10 +1347,8 @@ public abstract class IgniteTxAdapter<K, V> extends GridMetadataAwareAdapter
         if (newVal == null && newValBytes != null)
             newVal = cctx.marshaller().unmarshal(newValBytes, cctx.deploy().globalLoader());
 
-        long newExpireTime = newDrExpireTime >= 0L ? newDrExpireTime : CU.toExpireTime(newTtl);
-
         GridCacheVersionedEntryEx<K, V> newEntry =
-            new GridCachePlainVersionedEntry<>(key, newVal, newTtl, newExpireTime, newVer);
+            new GridCachePlainVersionedEntry<>((K)txEntry.key(), newVal, newTtl, newExpireTime, newVer);
 
         GridCacheVersionConflictContext<K, V> ctx = old.context().conflictResolve(oldEntry, newEntry, false);
 

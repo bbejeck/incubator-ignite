@@ -506,19 +506,23 @@ public class GridDistributedTxRemoteAdapter<K, V> extends IgniteTxAdapter<K, V>
 
                                     GridCacheVersion explicitVer = txEntry.conflictVersion();
 
+                                    if (explicitVer == null)
+                                        explicitVer = writeVersion();
+
                                     if (txEntry.ttl() == CU.TTL_ZERO)
                                         op = DELETE;
 
                                     boolean drNeedResolve = cacheCtx.conflictNeedResolve();
 
+                                    GridCacheVersionConflictContext<K, V> drCtx = null;
+
                                     if (drNeedResolve) {
                                         IgniteBiTuple<GridCacheOperation, GridCacheVersionConflictContext<K, V>>
-                                            drRes = conflictResolve(op, txEntry.key(), val, valBytes,
-                                            txEntry.ttl(), txEntry.conflictExpireTime(), explicitVer, cached);
+                                            drRes = conflictResolve(op, txEntry, val, valBytes, explicitVer, cached);
 
                                         assert drRes != null;
 
-                                        GridCacheVersionConflictContext<K, V> drCtx = drRes.get2();
+                                        drCtx = drRes.get2();
 
                                         if (drCtx.isUseOld())
                                             op = NOOP;
@@ -610,26 +614,27 @@ public class GridDistributedTxRemoteAdapter<K, V> extends IgniteTxAdapter<K, V>
                                             "Transaction does not own lock for group lock entry during  commit [tx=" +
                                                 this + ", txEntry=" + txEntry + ']';
 
-                                        if (txEntry.ttl() != -1L)
-                                            cached.updateTtl(null, txEntry.ttl());
+                                        if (drCtx == null || !drCtx.isUseOld()) {
+                                            if (txEntry.ttl() != CU.TTL_NOT_CHANGED)
+                                                cached.updateTtl(null, txEntry.ttl());
 
-                                        if (nearCached != null) {
-                                            V val0 = null;
-                                            byte[] valBytes0 = null;
+                                            if (nearCached != null) {
+                                                V val0 = null;
+                                                byte[] valBytes0 = null;
 
-                                            GridCacheValueBytes valBytesTuple = cached.valueBytes();
+                                                GridCacheValueBytes valBytesTuple = cached.valueBytes();
 
-                                            if (!valBytesTuple.isNull()) {
-                                                if (valBytesTuple.isPlain())
-                                                    val0 = (V)valBytesTuple.get();
-                                                else
-                                                    valBytes0 = valBytesTuple.get();
+                                                if (!valBytesTuple.isNull()) {
+                                                    if (valBytesTuple.isPlain())
+                                                        val0 = (V) valBytesTuple.get();
+                                                    else
+                                                        valBytes0 = valBytesTuple.get();
+                                                } else
+                                                    val0 = cached.rawGet();
+
+                                                nearCached.updateOrEvict(xidVer, val0, valBytes0, cached.expireTime(),
+                                                    cached.ttl(), nodeId);
                                             }
-                                            else
-                                                val0 = cached.rawGet();
-
-                                            nearCached.updateOrEvict(xidVer, val0, valBytes0, cached.expireTime(),
-                                                cached.ttl(), nodeId);
                                         }
                                     }
 
