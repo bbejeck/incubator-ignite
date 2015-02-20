@@ -472,6 +472,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
     /** {@inheritDoc} */
     @Override public IgniteInternalFuture<?> putAllConflictAsync(Map<? extends K, GridCacheDrInfo<V>> conflictMap) {
+        // TODO IGNITE-283: Invalid metrics update in case of local store.
         ctx.dr().onReceiveCacheEntriesReceived(conflictMap.size());
 
         return updateAllAsync0(null,
@@ -562,6 +563,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
     /** {@inheritDoc} */
     @Override public IgniteInternalFuture<?> removeAllConflictAsync(Map<? extends K, GridCacheVersion> conflictMap) {
+        // TODO: IGNITE-283: Invalid metrics update in case of local store.
         ctx.dr().onReceiveCacheEntriesReceived(conflictMap.size());
 
         return removeAllAsync0(null, conflictMap, null, false, false, null);
@@ -1118,16 +1120,15 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                         dhtFut = createDhtFuture(ver, req, res, completionCb, false);
 
-                        boolean replicate = ctx.isDrEnabled();
-
                         expiry = expiryPolicy(req.expiry());
 
                         GridCacheReturn<Object> retVal = null;
 
+                        // TODO: IGNITE-283: Merge local store and DR checks into single method inside ctx.
                         if (keys.size() > 1 &&                             // Several keys ...
                             writeThrough() &&                              // and store is enabled ...
                             !ctx.store().isLocalStore() &&                 // and this is not local store ...
-                            !ctx.dr().receiveEnabled()  // and no DR.
+                            !ctx.dr().receiveEnabled()                     // and no DR.
                         ) {
                             // This method can only be used when there are no replicated entries in the batch.
                             UpdateBatchResult<K, V> updRes = updateWithBatch(node,
@@ -1138,7 +1139,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 ver,
                                 dhtFut,
                                 completionCb,
-                                replicate,
+                                ctx.isDrEnabled(),
                                 taskName,
                                 expiry);
 
@@ -1157,7 +1158,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 ver,
                                 dhtFut,
                                 completionCb,
-                                replicate,
+                                ctx.isDrEnabled(),
                                 taskName,
                                 expiry);
 
@@ -1670,10 +1671,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                 long newConflictTtl = req.conflictTtl(i);
                 long newConflictExpireTime = req.conflictExpireTime(i);
 
-                assert !(newConflictVer instanceof GridCacheVersionEx) : newConflictVer; // Plain version is expected here.
-
-                if (newConflictVer == null)
-                    newConflictVer = ver;
+                assert !(newConflictVer instanceof GridCacheVersionEx) : newConflictVer;
 
                 boolean primary = !req.fastMap() || ctx.affinity().primary(ctx.localNode(), entry.key(),
                     req.topologyVersion());
@@ -1723,15 +1721,12 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                 if (dhtFut != null) {
                     if (updRes.sendToDht()) { // Send to backups even in case of remove-remove scenarios.
-                        GridCacheVersionConflictContext<K, V> ctx = updRes.conflictResolveResult();
+                        GridCacheVersionConflictContext<K, V> conflictCtx = updRes.conflictResolveResult();
 
-                        long ttl = updRes.newTtl();
-                        long expireTime = updRes.conflictExpireTime();
-
-                        if (ctx == null)
+                        if (conflictCtx == null)
                             newConflictVer = null;
-                        else if (ctx.isMerge()) {
-                            newConflictVer = null; // DR version is discarded in case of merge.
+                        else if (conflictCtx.isMerge()) {
+                            newConflictVer = null; // Conflict version is discarded in case of merge.
                             newValBytes = null; // Value has been changed.
                         }
 
@@ -1746,7 +1741,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 newValBytes,
                                 entryProcessor,
                                 updRes.newTtl(),
-                                expireTime,
+                                updRes.conflictExpireTime(),
                                 newConflictVer);
                         }
 
@@ -1756,8 +1751,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 updRes.newValue(),
                                 newValBytes,
                                 entryProcessor,
-                                ttl,
-                                expireTime);
+                                updRes.newTtl(),
+                                updRes.conflictExpireTime());
                     }
                     else {
                         if (log.isDebugEnabled())
@@ -1771,9 +1766,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                         if (!ctx.affinity().belongs(node, entry.partition(), topVer)) {
                             GridCacheVersionConflictContext<K, V> ctx = updRes.conflictResolveResult();
 
-                            long ttl = updRes.newTtl();
-                            long expireTime = updRes.conflictExpireTime();
-
                             if (ctx != null && ctx.isMerge())
                                 newValBytes = null;
 
@@ -1782,11 +1774,11 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 res.addNearValue(i,
                                     updRes.newValue(),
                                     newValBytes,
-                                    ttl,
-                                    expireTime);
+                                    updRes.newTtl(),
+                                    updRes.conflictExpireTime());
                             }
                             else
-                                res.addNearTtl(i, ttl, expireTime);
+                                res.addNearTtl(i, updRes.newTtl(), updRes.conflictExpireTime());
 
                             if (updRes.newValue() != null || newValBytes != null) {
                                 IgniteInternalFuture<Boolean> f = entry.addReader(node.id(), req.messageId(), topVer);
@@ -1880,7 +1872,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
     ) {
         assert putMap == null ^ rmvKeys == null;
 
-        assert req.conflictVersions() == null : "updatePartialBatch cannot be called when there are DR entries in the batch.";
+        assert req.conflictVersions() == null : "Cannot be called when there are conflict entries in the batch.";
 
         long topVer = req.topologyVersion();
 
@@ -2479,9 +2471,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                         long ttl = req.ttl(i);
                         long expireTime = req.conflictExpireTime(i);
-
-                        if (ttl != -1L && expireTime == -1L)
-                            expireTime = CU.toExpireTime(ttl);
 
                         GridCacheUpdateAtomicResult<K, V> updRes = entry.innerUpdate(
                             ver,

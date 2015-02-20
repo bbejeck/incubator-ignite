@@ -43,9 +43,6 @@ public class GridCacheVersionConflictContext<K, V> {
     /** TTL. */
     private long ttl;
 
-    /** Explicit TTL flag. */
-    private boolean explicitTtl;
-
     /** Manual resolve flag. */
     private boolean manualResolve;
 
@@ -110,8 +107,7 @@ public class GridCacheVersionConflictContext<K, V> {
     public void useNew() {
         state = State.USE_NEW;
 
-        if (!explicitTtl)
-            ttl = newEntry.ttl();
+        ttl = newEntry.ttl();
     }
 
     /**
@@ -121,15 +117,16 @@ public class GridCacheVersionConflictContext<K, V> {
      * Also in case of merge you have to specify new TTL explicitly. For unlimited TTL use {@code 0}.
      *
      * @param mergeVal Merge value or {@code null} to force remove.
-     * @param ttl Time to live in milliseconds.
+     * @param ttl Time to live in milliseconds (must be non-negative).
      */
     public void merge(@Nullable V mergeVal, long ttl) {
+        if (ttl < 0)
+            throw new IllegalArgumentException("TTL must be non-negative: " + ttl);
+
         state = State.MERGE;
 
         this.mergeVal = mergeVal;
         this.ttl = ttl;
-
-        explicitTtl = true;
     }
 
     /**
@@ -185,15 +182,7 @@ public class GridCacheVersionConflictContext<K, V> {
      * @return Expire time.
      */
     public long expireTime() {
-        return explicitTtl ? CU.toExpireTime(ttl) : isUseNew() ? newEntry.expireTime() :
-            isUseOld() ? oldEntry.expireTime() : 0L;
-    }
-
-    /**
-     * @return Explicit TTL flag.
-     */
-    public boolean explicitTtl() {
-        return explicitTtl;
+        return isUseNew() ? newEntry.expireTime() : isUseOld() ? oldEntry.expireTime() : CU.toExpireTime(ttl);
     }
 
     /** {@inheritDoc} */
