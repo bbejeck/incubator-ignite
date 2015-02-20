@@ -59,7 +59,6 @@ import java.math.*;
 import java.net.*;
 import java.nio.*;
 import java.nio.channels.*;
-import java.nio.channels.spi.*;
 import java.nio.charset.*;
 import java.security.*;
 import java.security.cert.*;
@@ -647,15 +646,7 @@ public abstract class IgniteUtils {
      * @return Nearest power of 2.
      */
     public static int ceilPow2(int v) {
-        v--;
-
-        v |= v >> 1;
-        v |= v >> 2;
-        v |= v >> 4;
-        v |= v >> 8;
-        v |= v >> 16;
-
-        return ++v;
+        return Integer.highestOneBit(v - 1) << 1;
     }
 
     /**
@@ -1672,13 +1663,11 @@ public abstract class IgniteUtils {
                     if (!itf.isLoopback()) {
                         Enumeration<InetAddress> addrs = itf.getInetAddresses();
 
-                        if (addrs != null) {
-                            for (InetAddress addr : asIterable(addrs)) {
-                                String hostAddr = addr.getHostAddress();
+                        for (InetAddress addr : asIterable(addrs)) {
+                            String hostAddr = addr.getHostAddress();
 
-                                if (!addr.isLoopbackAddress() && !ips.contains(hostAddr))
-                                    ips.add(hostAddr);
-                            }
+                            if (!addr.isLoopbackAddress() && !ips.contains(hostAddr))
+                                ips.add(hostAddr);
                         }
                     }
                 }
@@ -2239,15 +2228,8 @@ public abstract class IgniteUtils {
         if (s == null)
             return;
 
-        OutputStream out = null;
-
-        try {
-            out = new FileOutputStream(file, append);
-
-            if (s != null)
-                out.write(s.getBytes(charset));
-        } finally {
-            closeQuiet(out);
+        try (OutputStream out = new FileOutputStream(file, append)) {
+            out.write(s.getBytes(charset));
         }
     }
 
@@ -3145,35 +3127,17 @@ public abstract class IgniteUtils {
     }
 
     /**
-     * Checks for containment of value matching given regular expression in the provided array.
-     *
-     * @param arr Array of strings.
-     * @param regex Regular expression.
-     * @return {@code true} if string matching given regular expression found, {@code false} otherwise.
-     */
-    public static boolean containsRegexArray(String[] arr, String regex) {
-        assert arr != null;
-        assert regex != null;
-
-        for (String s : arr)
-            if (s != null && s.matches(regex))
-                return true;
-
-        return false;
-    }
-
-    /**
      * Closes given resource logging possible checked exception.
      *
      * @param rsrc Resource to close. If it's {@code null} - it's no-op.
      * @param log Logger to log possible checked exception with (optional).
      */
-    public static void close(@Nullable Closeable rsrc, @Nullable IgniteLogger log) {
+    public static void close(@Nullable AutoCloseable rsrc, @Nullable IgniteLogger log) {
         if (rsrc != null)
             try {
                 rsrc.close();
             }
-            catch (IOException e) {
+            catch (Exception e) {
                 warn(log, "Failed to close resource: " + e.getMessage());
             }
     }
@@ -3189,114 +3153,6 @@ public abstract class IgniteUtils {
                 rsrc.close();
             }
             catch (Exception ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Quietly closes given resource ignoring possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     */
-    public static void closeQuiet(@Nullable Closeable rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Closes given resource logging possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     * @param log Logger to log possible checked exception with (optional).
-     */
-    public static void close(@Nullable Socket rsrc, @Nullable IgniteLogger log) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException e) {
-                warn(log, "Failed to close resource: " + e.getMessage());
-            }
-    }
-
-    /**
-     * Quietly closes given resource ignoring possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     */
-    public static void closeQuiet(@Nullable Socket rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Closes given resource logging possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     * @param log Logger to log possible checked exception with (optional).
-     */
-    public static void close(@Nullable ServerSocket rsrc, @Nullable IgniteLogger log) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException e) {
-                warn(log, "Failed to close resource: " + e.getMessage());
-            }
-    }
-
-    /**
-     * Quietly closes given resource ignoring possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     */
-    public static void closeQuiet(@Nullable ServerSocket rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Closes given resource logging possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     * @param log Logger to log possible checked exception with (optional).
-     */
-    public static void close(@Nullable AbstractInterruptibleChannel rsrc, @Nullable IgniteLogger log) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException e) {
-                warn(log, "Failed to close resource: " + e.getMessage());
-            }
-    }
-
-    /**
-     * Quietly closes given resource ignoring possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     */
-    public static void closeQuiet(@Nullable AbstractInterruptibleChannel rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException ignored) {
                 // No-op.
             }
     }
@@ -3322,83 +3178,6 @@ public abstract class IgniteUtils {
         if (rsrc != null)
             // This apply will automatically deregister the selection key as well.
             closeQuiet(rsrc.channel());
-    }
-
-    /**
-     * Closes given resource logging possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     * @param log Logger to log possible checked exception with (optional).
-     */
-    public static void close(@Nullable Reader rsrc, @Nullable IgniteLogger log) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException e) {
-                warn(log, "Failed to close resource: " + e.getMessage());
-            }
-    }
-
-    /**
-     * Quietly closes given resource ignoring possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     */
-    public static void closeQuiet(@Nullable Reader rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Quietly closes given resource ignoring possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     */
-    public static void closeQuiet(@Nullable Writer rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Closes given resource logging possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     * @param log Logger to log possible checked exception with (optional).
-     */
-    public static void close(@Nullable ZipFile rsrc, @Nullable IgniteLogger log) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException e) {
-                warn(log, "Failed to close resource: " + e.getMessage());
-            }
-    }
-
-    /**
-     * Quietly closes given resource ignoring possible checked exception.
-     *
-     * @param rsrc Resource to close. If it's {@code null} - it's no-op.
-     */
-    public static void closeQuiet(@Nullable ZipFile rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (IOException ignored) {
-                // No-op.
-            }
     }
 
     /**
@@ -3471,99 +3250,6 @@ public abstract class IgniteUtils {
                 rsrc.close();
             }
             catch (NamingException ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Closes JDBC connection logging possible checked exception.
-     *
-     * @param rsrc JDBC connection to close. If connection is {@code null}, it's no-op.
-     * @param log Logger to log possible checked exception with (optional).
-     */
-    public static void close(@Nullable Connection rsrc, @Nullable IgniteLogger log) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (SQLException e) {
-                warn(log, "Failed to close resource: " + e.getMessage());
-            }
-    }
-
-    /**
-     * Quietly closes JDBC connection ignoring possible checked exception.
-     *
-     * @param rsrc JDBC connection to close. If connection is {@code null}, it's no-op.
-     */
-    public static void closeQuiet(@Nullable Connection rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (SQLException ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Closes JDBC statement logging possible checked exception.
-     *
-     * @param rsrc JDBC statement to close. If statement is {@code null}, it's no-op.
-     * @param log Logger to log possible checked exception with (optional).
-     */
-    public static void close(@Nullable Statement rsrc, @Nullable IgniteLogger log) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (SQLException e) {
-                warn(log, "Failed to close resource: " + e.getMessage());
-            }
-    }
-
-    /**
-     * Quietly closes JDBC statement ignoring possible checked exception.
-     *
-     * @param rsrc JDBC statement to close. If statement is {@code null}, it's no-op.
-     */
-    public static void closeQuiet(@Nullable Statement rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (SQLException ignored) {
-                // No-op.
-            }
-    }
-
-    /**
-     * Closes JDBC result set logging possible checked exception.
-     *
-     * @param rsrc JDBC result set to close. If result set is {@code null}, it's no-op.
-     * @param log Logger to log possible checked exception with (optional).
-     */
-    public static void close(@Nullable ResultSet rsrc, @Nullable IgniteLogger log) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (SQLException e) {
-                warn(log, "Failed to close resource: " + e.getMessage());
-            }
-    }
-
-    /**
-     * Quietly closes JDBC result set ignoring possible checked exception.
-     *
-     * @param rsrc JDBC result set to close. If result set is {@code null}, it's no-op.
-     */
-    public static void closeQuiet(@Nullable ResultSet rsrc) {
-        if (rsrc != null)
-            try {
-                rsrc.close();
-            }
-            catch (SQLException ignored) {
                 // No-op.
             }
     }
@@ -6279,6 +5965,10 @@ public abstract class IgniteUtils {
         return arr;
     }
 
+    /**
+     * @param arr1 Array 1.
+     * @param arr2 Array 2.
+     */
     public static int[] addAll(int[] arr1, int[] arr2) {
         int[] all = new int[arr1.length + arr2.length];
 
@@ -6883,15 +6573,7 @@ public abstract class IgniteUtils {
     public static boolean isPrimitiveArray(Object obj) {
         Class<?> cls = obj.getClass();
 
-        return cls.isArray() && (
-            cls.equals(byte[].class) ||
-                cls.equals(short[].class) ||
-                cls.equals(char[].class) ||
-                cls.equals(int[].class) ||
-                cls.equals(long[].class) ||
-                cls.equals(float[].class) ||
-                cls.equals(double[].class) ||
-                cls.equals(boolean[].class));
+        return cls.isArray() && cls.getComponentType().isPrimitive();
     }
 
     /**
@@ -8659,15 +8341,15 @@ public abstract class IgniteUtils {
      * Converts a hexadecimal character to an integer.
      *
      * @param ch A character to convert to an integer digit
-     * @param index The index of the character in the source
+     * @param idx The index of the character in the source
      * @return An integer
      * @throws IgniteCheckedException Thrown if ch is an illegal hex character
      */
-    public static int toDigit(char ch, int index) throws IgniteCheckedException {
+    public static int toDigit(char ch, int idx) throws IgniteCheckedException {
         int digit = Character.digit(ch, 16);
 
         if (digit == -1)
-            throw new IgniteCheckedException("Illegal hexadecimal character " + ch + " at index " + index);
+            throw new IgniteCheckedException("Illegal hexadecimal character " + ch + " at index " + idx);
 
         return digit;
     }
@@ -9076,7 +8758,7 @@ public abstract class IgniteUtils {
         assert c != null;
         assert cap >= 0;
 
-        ArrayList<R> list = new ArrayList<>(cap);
+        List<R> list = new ArrayList<>(cap);
 
         for (T t : c) {
             if (F.isAll(t, p))
