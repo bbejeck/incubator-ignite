@@ -776,12 +776,11 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
         // Stop receiving notifications.
         getSpi().setListener(null);
 
-        // Stop discovery worker.
+        // Stop discovery worker and metrics updater.
         U.cancel(discoWrk);
-        U.join(discoWrk, log);
-
-        // Stop metrics updater.
         U.cancel(metricsUpdater);
+
+        U.join(discoWrk, log);
         U.join(metricsUpdater, log);
 
         // Stop SPI itself.
